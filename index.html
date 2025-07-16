@@ -344,7 +344,6 @@
                 movable: true,
                 speedKph: 37, // 20 kts
                 rangeRings: [
-                    { type: 'sensor', rangeNm: 400, name: 'Sensor Range' },
                     { type: 'movement', rangeNm: 3000, name: 'Travel Radius' }
                 ]
             },
@@ -1136,8 +1135,9 @@
         
         // --- APPLICATION INITIALIZER ---
         function initializeApp() {
-            // BUG FIX: Map initialization moved here to ensure Leaflet is loaded.
-            map = L.map('map').setView([-6.3, 146.8], 5);
+            // Initialize map without default attribution
+            map = L.map('map', { attributionControl: false }).setView([-6.3, 146.8], 5);
+            
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
