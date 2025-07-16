@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Wargame Map (Critically Appraised)</title>
+
+    <!-- Leaflet.js CSS for map styling -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+
+    <!-- Tailwind CSS for overall page styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scrolling */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            background-color: #a2d3f5; /* A light blue to represent the sea/sky */
+        }
+        /* Styling for the unit name labels */
+        .unit-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            white-space: nowrap;
+            color: #1f2937; /* gray-800 */
+            text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white;
+        }
+        /* Style for draggable items in the menu */
+        .draggable-unit { cursor: grab; }
+        .draggable-unit:active { cursor: grabbing; }
+        /* Style for mountable ordnance in the menu */
+        .mountable-ordnance { background-color: #eef2ff; }
+        /* Cursors for different modes */
+        .targeting-cursor { cursor: crosshair !important; }
+        .move-cursor { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>') 16 16, auto !important; }
+        .targeting-cursor .leaflet-marker-icon.invalid-target-hover,
+        .move-cursor .leaflet-marker-icon { cursor: not-allowed !important; }
+        /* Line styles */
+        .trajectory-line, .move-path-line { stroke-dasharray: 5, 10; }
+        .jamming-circle-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { stroke-opacity: 1; stroke-width: 2; }
+            50% { stroke-opacity: 0.5; stroke-width: 4; }
+            100% { stroke-opacity: 1; stroke-width: 2; }
+        }
+        /* Jammed unit effect */
+        .jammed-effect {
+            animation: flicker 0.3s infinite;
+        }
+        @keyframes flicker {
+            0% { filter: grayscale(1) opacity(0.7); }
+            50% { filter: grayscale(1) opacity(0.4); }
+            100% { filter: grayscale(1) opacity(0.7); }
+        }
+        /* Targeting button effect */
+        .targeting-button-pulse {
+            animation: pulse-bg 1.5s infinite;
+        }
+        @keyframes pulse-bg {
+            0% { background-color: #f59e0b; } /* amber-500 */
+            50% { background-color: #fcd34d; } /* amber-300 */
+            100% { background-color: #f59e0b; } /* amber-500 */
+        }
+        /* Aircraft weapon badge */
+        .weapon-badge {
+            position: absolute; top: -5px; right: -8px;
+            background-color: #ef4444; color: white;
+            border-radius: 9999px; width: 18px; height: 18px;
+            font-size: 11px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            border: 2px solid white;
+        }
+        /* Highlight for valid drop target */
+        .drop-target-highlight { filter: drop-shadow(0 0 8px #22c55e) !important; }
+        
+        /* NEW: Targeting Panel styles */
+        #targeting-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        /* NEW: Legend Styles */
+        .legend {
+            padding: 6px 8px;
+            font: 12px/1.5 'Inter', sans-serif;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .legend h4 {
+            margin: 0 0 5px;
+            color: #333;
+            font-weight: 700;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        
+        /* REWORK: Contemporary popup style for info */
+        .unit-info-popup .leaflet-popup-content-wrapper {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 8px !important;
+            border: 1px solid #ccc !important;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.2) !important;
+        }
+        .unit-info-popup .leaflet-popup-content {
+            margin: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .unit-info-popup .leaflet-popup-tip-container {
+            display: none;
+        }
+
+        /* NEW: Style for dynamic ring labels */
+        .ring-label {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        /* NEW: Icon selector styles */
+        .icon-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .icon-selector-item {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .icon-selector-item:hover {
+            background-color: #f3f4f6;
+        }
+        .icon-selector-item.selected {
+            border-color: #3b82f6;
+        }
+        .bg-grey-100 { background-color: #f3f4f6; } /* Tailwind's gray-100 */
+    </style>
+</head>
+<body class="bg-grey-100">
+
+    <div class="flex h-screen">
+        <!-- Map Container -->
+        <div id="map-container" class="relative flex-grow h-full">
+            <div id="map"></div>
+            <!-- Simulation Controls -->
+            <div class="absolute top-4 left-4 z-[1000] bg-white p-2 rounded-lg shadow-lg flex flex-col space-y-2">
+                <div class="flex space-x-2">
+                    <button id="targeting-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
+                    <button id="launch-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="save-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Scene</button>
+                    <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
+                    <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
+                </div>
+            </div>
+            
+            <!-- NEW: Targeting Control Panel -->
+            <div id="targeting-panel" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-full max-w-4xl bg-gray-800/90 text-white p-4 rounded-t-lg shadow-2xl z-[1000]">
+                <div id="targeting-panel-content" class="text-center"></div>
+            </div>
+        </div>
+
+        <!-- Right Hand Menu -->
+        <div class="w-80 h-full bg-white shadow-lg overflow-y-auto p-4 border-l border-gray-200 flex flex-col">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">Entity Library</h2>
+            <div id="unit-menu" class="space-y-4 flex-grow">
+                <!-- Menu content will be generated by JavaScript -->
+            </div>
+            <!-- NEW: Add Entity Button -->
+            <div class="mt-4">
+                <button id="add-entity-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition-colors">
+                    Create New Entity
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Entity Creation Modal -->
+    <div id="entity-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <!-- Step 1: Category Selection -->
+            <div id="modal-step-1">
+                <h2 class="text-2xl font-bold mb-4">Select Entity Type</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button data-action="select-entity-type" data-type="platform" class="entity-type-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg">Platform</button>
+                    <button data-action="select-entity-type" data-type="weapon" class="entity-type-btn bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg">Weapon System</button>
+                </div>
+                 <button type="button" data-action="close-create-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Cancel</button>
+            </div>
+            <!-- Step 2: Form -->
+            <div id="modal-step-2" class="hidden">
+                <h2 id="form-title" class="text-2xl font-bold mb-4"></h2>
+                <form id="entity-form" class="space-y-4"></form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- NEW: Library Info Modal -->
+    <div id="library-info-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden">
+        <div id="library-info-content" class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <!-- Content will be injected here -->
+        </div>
+    </div>
+
+
+    <!-- Leaflet.js JavaScript library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""></script>
+
+    <script>
+        // --- GLOBAL STATE ---
+        var map = null;
+        var activeAction = { type: null, armedUnit: null, armedWeapon: null, shotsToFire: 0 };
+        var activeMapUnits = new Map();
+        var savedScenario = null;
+        var nextUnitInstanceId = 0;
+        var lastFrameTime = performance.now();
+        var activeInfoPopup = null; 
+
+        // --- VISUAL CONFIGURATION ---
+        const ringStyles = {
+            sensor: { color: '#0ea5e9', weight: 1.5, dashArray: '2, 8', fillOpacity: 0.05 }, // Cyan colour
+            movement: { color: '#22c55e', weight: 1.5, dashArray: '10, 10', fillOpacity: 0.05 }, // Green colour
+            ea: { color: '#a855f7', weight: 2, className: 'jamming-circle-pulse', fillOpacity: 0.1 }, // Purple colour
+            weapon: { color: '#ef4444', weight: 2, dashArray: null, fillOpacity: 0.1 } // Red colour
+        };
+
+        // --- UNIT DATA LIBRARY ---
+        let unitLibrary = {
+            // --- Red Force ---
+            'pacific-taskforce-hq': {
+                name: 'Pacific Taskforce HQ',
+                shortName: 'Red HQ',
+                force: 'red',
+                category: 'land',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png',
+                rangeRings: []
+            },
+            'sa-12-sabot': {
+                name: 'SA-12 Sabot',
+                shortName: 'SA-12',
+                force: 'red',
+                category: 'weapons',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
+                ammo: 8,
+                movable: true,
+                speedKph: 50,
+                c4Dependent: true,
+                reloadTimeHours: 6,
+                weaponSpeedMach: 1,
+                rangeRings: [
+                    { type: 'sensor', rangeNm: 300, name: 'Sensor (Non-Manoeuvring)' },
+                    { type: 'sensor', rangeNm: 140, name: 'Sensor (Fighter)' },
+                    { type: 'sensor', rangeNm: 60, name: 'Sensor (Cruise Missile)' },
+                    { type: 'sensor', rangeNm: 20, name: 'Sensor (Hypersonic)' },
+                    { type: 'weapon', rangeNm: 100, name: 'Weapon Range' }
+                ],
+                jammingEffects: {
+                    'ea-30g': { // Jammed by EA-30G Fowler
+                        degradedRings: [
+                            { type: 'sensor', rangeNm: 150, name: 'Sensor (Non-Manoeuvring)' },
+                            { type: 'sensor', rangeNm: 50, name: 'Sensor (Fighter)' },
+                            { type: 'sensor', rangeNm: 20, name: 'Sensor (Cruise Missile)' },
+                            // Hypersonic detection is completely degraded
+                            { type: 'weapon', rangeNm: 100, name: 'Weapon Range' } // Weapon range is unaffected
+                        ]
+                    }
+                }
+            },
+            'coastal-defence-missile': {
+                name: 'Coastal Defence Missile Force',
+                shortName: 'CD Missile',
+                force: 'red',
+                category: 'weapons',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2369/2369415.png',
+                description: '111 Reg/12 Battalion',
+                ammo: 14,
+                movable: true,
+                speedKph: 40,
+                c4Dependent: true,
+                reloadTimeHours: 6,
+                weaponSpeedMach: 0.8,
+                rangeRings: [
+                    { type: 'sensor', rangeNm: 350, name: 'Sensor Range' },
+                    { type: 'weapon', rangeNm: 350, name: 'Weapon Range' }
+                ]
+            },
+            
+            // --- Blue Force ---
+            'blue-hq': { 
+                name: 'Bunnings Shed Joint HQ', 
+                shortName: 'Blue HQ', 
+                force: 'blue', 
+                category: 'land', 
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png', 
+                rangeRings: [] 
+            },
+            'mort-ddg': {
+                name: 'Mort Class DDG',
+                shortName: 'DDG',
+                force: 'blue',
+                category: 'maritime',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/256/15455/15455562.png',
+                movable: true,
+                speedKph: 37, // 20 kts
+                rangeRings: [
+                    { type: 'movement', rangeNm: 3000, name: 'Travel Radius' }
+                ]
+            },
+            'ea-30g': { 
+                name: 'EA-30G Fowler', 
+                shortName: 'EA-30G', 
+                force: 'blue', 
+                category: 'air', 
+                platformType: 'air', 
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/15631/15631307.png', 
+                hardpoints: 0, // Assuming no weapons, just jammer
+                role: 'Electronic Attack', 
+                jammerId: 'alq-77',
+                eaRangeNm: 400,
+                speedKph: 988, // Mach 0.8
+                rangeRings: [
+                    { type: 'ea', rangeNm: 400, name: 'Jamming Radius' },
+                    { type: 'movement', rangeNm: 1000, name: 'Max Range' }
+                ]
+            },
+            'f-55': { 
+                name: 'F-55 Flogger', 
+                shortName: 'F-55', 
+                force: 'blue', 
+                category: 'air', 
+                platformType: 'air', 
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2089/2089910.png', 
+                hardpoints: 6,
+                speedKph: 988, // Mach 0.8
+                rangeRings: [
+                    { type: 'sensor', rangeNm: 100, name: 'Sensor (Lrg AC)' },
+                    { type: 'sensor', rangeNm: 50, name: 'Sensor (Fighter)' },
+                    { type: 'movement', rangeNm: 1100, name: 'Max Range (External)'},
+                    { type: 'movement', rangeNm: 800, name: 'Max Range (Internal)'},
+                ]
+            },
+            'e-17a': {
+                name: 'E-17A Wedge-Snail',
+                shortName: 'Wedge-Snail',
+                force: 'blue',
+                category: 'air',
+                platformType: 'air',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/7893/7893970.png',
+                speedKph: 617, // Mach 0.5
+                hardpoints: 0,
+                rangeRings: [
+                    { type: 'sensor', rangeNm: 150, name: 'Surveillance Radar' },
+                    { type: 'movement', rangeNm: 2000, name: 'Max Range' }
+                ]
+            },
+            'sf-76': {
+                name: '76th SF',
+                shortName: '76th SF',
+                force: 'blue',
+                category: 'land',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/9924/9924283.png',
+                ammo: 12,
+                rangeRings: [
+                    { type: 'weapon', rangeNm: 150, name: 'Land Strike' },
+                    { type: 'weapon', rangeNm: 15, name: 'Self Defence' }
+                ]
+            },
+            'mgm-666': {
+                name: 'MGM-666 Long Pole',
+                shortName: 'Long Pole',
+                force: 'blue',
+                category: 'weapons',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2369/2369415.png',
+                ammo: 1, // Assumed
+                rangeRings: [
+                    { type: 'weapon', rangeNm: 1000, name: 'Land Strike' }
+                ]
+            },
+            'counter-air': {
+                name: 'Counter Air Weapons',
+                shortName: 'CAW',
+                force: 'blue',
+                category: 'weapons',
+                platform: 'aircraft',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
+                ammo: 1,
+                rangeRings: [ { type: 'weapon', rangeNm: 20, name: 'Weapon Range' } ]
+            },
+            'throwing-axe': {
+                name: 'Throwing Axe Weapons (325nm)',
+                shortName: 'Axe',
+                force: 'blue',
+                category: 'weapons',
+                platform: 'aircraft',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
+                ammo: 1,
+                rangeRings: [ { type: 'weapon', rangeNm: 325, name: 'Weapon Range' } ]
+            },
+            'aam': {
+                name: 'Air-to-Air missiles',
+                shortName: 'AAM',
+                force: 'blue',
+                category: 'weapons',
+                platform: 'aircraft',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
+                ammo: 1,
+                rangeRings: [] // Range would depend on the specific missile
+            }
+        };
+        const impactIconUrl = 'https://cdn-icons-png.flaticon.com/512/3219/3219507.png';
+        const missedIconUrl = 'https://cdn-icons-png.flaticon.com/512/14521/14521298.png';
+        const NM_TO_METERS = 1852;
+        const KPH_TO_MPS = 1000 / 3600;
+
+        // --- UTILITY & ICON CREATION ---
+        const createUrlIcon = (url, size = [32, 32]) => L.icon({ iconUrl: url, iconSize: size, iconAnchor: [size[0]/2, size[1]], popupAnchor: [0, -size[1]] });
+        
+        function createAircraftIcon(unitData, weaponCount) {
+            const badgeHtml = weaponCount > 0 ? `<div class="weapon-badge">${weaponCount}</div>` : '';
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="position: relative;"><img src="${unitData.iconUrl}" style="width: 32px; height: 32px;">${badgeHtml}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+        }
+
+        // --- CORE UNIT MANAGEMENT ---
+        function addCapability(latlng, unitId, instanceId = null, ammo = null, mountedWeapons = null, destination = null) {
+            const unitData = unitLibrary[unitId];
+            if (!unitData) return;
+
+            const currentInstanceId = instanceId !== null ? instanceId : nextUnitInstanceId++;
+            
+            const rehydratedMountedWeapons = mountedWeapons ? mountedWeapons.map(w => ({
+                ...w,
+                pendingTargets: w.pendingTargets || [],
+                rangeCircles: []
+            })) : [];
+
+            const icon = unitData.platformType === 'air' ? createAircraftIcon(unitData, rehydratedMountedWeapons.length) : createUrlIcon(unitData.iconUrl);
+            const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
+            marker.instanceId = currentInstanceId;
+
+            const nameMarker = L.marker(latlng, {
+                icon: L.divIcon({ className: 'unit-label', html: `<div>${unitData.shortName}</div>`, iconAnchor: [unitData.shortName.length * 3, -5] }),
+                interactive: false
+            }).addTo(map);
+
+            const unitObject = {
+                marker, nameMarker, rangeCircles: [], unitId, unitData,
+                instanceId: currentInstanceId,
+                ammo: ammo !== null ? ammo : unitData.ammo,
+                pendingTargets: [], 
+                mountedWeapons: unitData.platformType === 'air' ? rehydratedMountedWeapons : [],
+                destination: destination ? L.latLng(destination.lat, destination.lng) : null,
+                movePathLine: null,
+                isJammed: false,
+                ringLabels: [],
+                effectiveRangeRings: JSON.parse(JSON.stringify(unitData.rangeRings || [])) // Deep copy
+            };
+            
+            updateUnitRanges(unitObject); // Initial range drawing
+
+            if (unitObject.mountedWeapons) {
+                unitObject.mountedWeapons.forEach(weapon => {
+                    const weaponData = unitLibrary[weapon.weaponId];
+                    if (weaponData && weaponData.rangeRings) {
+                        weapon.rangeCircles = weaponData.rangeRings.map(r => {
+                            const style = ringStyles[r.type];
+                            if (style) {
+                                const circle = L.circle(latlng, { radius: r.rangeNm * NM_TO_METERS, ...style, originalStyle: style });
+                                circle.ringInfo = r;
+                                return circle;
+                            }
+                            return null;
+                        }).filter(c => c !== null);
+                        unitObject.rangeCircles.push(...weapon.rangeCircles);
+                    }
+                });
+                // Redraw all circles including weapon ranges
+                updateUnitRanges(unitObject);
+            }
+            
+            activeMapUnits.set(currentInstanceId, unitObject);
+            
+            if (unitObject.destination) {
+                unitObject.movePathLine = L.polyline([marker.getLatLng(), unitObject.destination], { color: 'green', weight: 2, className: 'move-path-line' }).addTo(map);
+            }
+
+            bindUnitEvents(unitObject);
+            return unitObject;
+        }
+
+        function deleteUnit(instanceId) {
+            const unitToRemove = activeMapUnits.get(instanceId);
+            if (unitToRemove) {
+                map.closePopup();
+                unitToRemove.marker.remove();
+                unitToRemove.nameMarker.remove();
+                unitToRemove.rangeCircles.forEach(c => c.remove());
+                if (unitToRemove.movePathLine) unitToRemove.movePathLine.remove();
+                unitToRemove.pendingTargets?.forEach(t => t.line.remove());
+                activeMapUnits.delete(instanceId);
+            }
+        }
+
+        function updateUnitPosition(unit, newLatLng) {
+            unit.marker.setLatLng(newLatLng);
+            unit.nameMarker.setLatLng(newLatLng);
+            unit.rangeCircles.forEach(circle => circle.setLatLng(newLatLng));
+            if (unit.movePathLine) {
+                unit.movePathLine.setLatLngs([newLatLng, unit.destination]);
+            }
+        }
+
+        function bindUnitEvents(unitObject) {
+            const { marker, unitData } = unitObject;
+
+            marker.on('dragstart', () => {
+                map.closePopup();
+            });
+
+            marker.on('drag', e => {
+                const currentUnit = activeMapUnits.get(e.target.instanceId);
+                if (!currentUnit) return;
+                
+                currentUnit.destination = null; 
+                if (currentUnit.movePathLine) {
+                    currentUnit.movePathLine.remove();
+                    currentUnit.movePathLine = null;
+                }
+                updateUnitPosition(currentUnit, e.latlng);
+            });
+            
+            marker.on('dragend', function() {
+                if (this.getElement().matches(':hover')) {
+                    this.fire('click', { latlng: this.getLatLng() });
+                }
+            });
+
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                
+                if (activeAction.type === 'targeting') {
+                    if (activeAction.armedWeapon) {
+                        setTarget(unitObject);
+                    } else {
+                        selectUnitForTargeting(unitObject);
+                    }
+                } else {
+                    if (activeInfoPopup && activeInfoPopup._source === marker) {
+                        map.closePopup(activeInfoPopup);
+                        activeInfoPopup = null;
+                    } else {
+                        if(activeInfoPopup) map.closePopup(activeInfoPopup);
+                        activeInfoPopup = L.popup({
+                                closeButton: false,
+                                className: 'unit-info-popup',
+                                offset: [20, -15]
+                            })
+                            .setLatLng(marker.getLatLng())
+                            .setContent(getUnitInfoPopupHTML(unitObject));
+                        
+                        marker.bindPopup(activeInfoPopup).openPopup();
+                    }
+                }
+            });
+            
+            marker.on('mouseover', () => {
+                if (activeAction.type) return;
+                unitObject.rangeCircles.forEach(circle => {
+                    circle.setStyle({ weight: 3, opacity: 1 });
+                    const point = getPointOnCircle(circle.getLatLng(), circle.getRadius());
+                    const label = L.marker(point, {
+                        icon: L.divIcon({
+                            className: 'ring-label',
+                            html: `<span>${circle.ringInfo.name}</span>`
+                        }),
+                        interactive: false
+                    }).addTo(map);
+                    unitObject.ringLabels.push(label);
+                });
+            });
+
+            marker.on('mouseout', () => {
+                if (activeAction.type) return;
+                unitObject.rangeCircles.forEach(circle => {
+                    circle.setStyle(circle.options.originalStyle);
+                });
+                unitObject.ringLabels.forEach(label => label.remove());
+                unitObject.ringLabels = [];
+            });
+
+            if (unitData.platformType === 'air') {
+                const el = marker.getElement();
+                if (el) {
+                    el.addEventListener('dragenter', e => { e.preventDefault(); el.classList.add('drop-target-highlight'); });
+                    el.addEventListener('dragleave', e => { e.preventDefault(); el.classList.remove('drop-target-highlight'); });
+                    el.addEventListener('dragover', e => e.preventDefault());
+                    el.addEventListener('drop', e => {
+                        e.preventDefault();
+                        el.classList.remove('drop-target-highlight');
+                        mountWeaponOnAircraft(unitObject, e.dataTransfer.getData('text/plain'));
+                    });
+                }
+            }
+        }
+        
+        function getUnitInfoPopupHTML(unitObject) {
+            const { unitData, instanceId } = unitObject;
+            let html = `<div class="p-1 space-y-1">
+                <h3 class="text-base font-bold text-gray-800">${unitData.name}</h3>
+                <p><b>Force:</b> <span class="capitalize ${unitData.force === 'red' ? 'text-red-600' : 'text-blue-600'}">${unitData.force}</span></p>`;
+            
+            if (unitData.description) {
+                html += `<p class="text-xs text-gray-500 italic">${unitData.description}</p>`;
+            }
+
+            if (unitData.platformType === 'air') {
+                html += `<p><b>Hardpoints:</b> ${unitObject.mountedWeapons.length} / ${unitData.hardpoints}</p>`;
+                if (unitObject.mountedWeapons.length > 0) {
+                    html += `<div class="border-t pt-1 mt-1 space-y-1">`;
+                    unitObject.mountedWeapons.forEach(weapon => {
+                        html += `<div class="flex justify-between items-center text-sm">
+                            <span>${unitLibrary[weapon.weaponId].shortName}</span>
+                            <button data-action="unmount" data-unit-id="${instanceId}" data-weapon-id="${weapon.instanceId}" class="text-xs text-white bg-red-600 hover:bg-red-700 rounded px-1 py-0.5">X</button>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+            } else if (unitData.ammo !== undefined) {
+                 html += `<p><b>Ammo:</b> ${unitObject.ammo}</p>`;
+            }
+
+            if (unitData.weaponSpeedMach) {
+                html += `<p class="text-xs"><b>Weapon Speed:</b> Mach ${unitData.weaponSpeedMach}</p>`;
+            }
+            if (unitData.reloadTimeHours) {
+                html += `<p class="text-xs"><b>Reload Time:</b> ${unitData.reloadTimeHours} hours</p>`;
+            }
+            
+            if (unitObject.effectiveRangeRings && unitObject.effectiveRangeRings.length > 0) {
+                 html += `<h4 class="font-semibold mt-2 border-b">Capabilities:</h4><ul class="list-disc list-inside text-xs">`;
+                 unitObject.effectiveRangeRings.forEach(ring => {
+                     html += `<li>${ring.name}: ${ring.rangeNm} NM</li>`;
+                 });
+                 html += `</ul>`;
+            }
+
+            html += `<button data-action="delete" data-unit-id="${instanceId}" class="mt-2 w-full text-xs text-white bg-gray-700 hover:bg-gray-800 rounded py-1">Delete Unit</button></div>`;
+            return html;
+        }
+
+        // --- AIRCRAFT LOADOUT LOGIC ---
+        function mountWeaponOnAircraft(aircraft, weaponUnitId) {
+            const weaponData = unitLibrary[weaponUnitId];
+            if (!aircraft || !aircraft.mountedWeapons || weaponData.platform !== 'aircraft' || aircraft.unitData.force !== weaponData.force) return;
+            if (aircraft.mountedWeapons.length >= aircraft.unitData.hardpoints) return;
+            const newWeapon = { weaponId: weaponUnitId, ammo: weaponData.ammo, instanceId: nextUnitInstanceId++, pendingTargets: [], rangeCircles: [] };
+            
+            aircraft.mountedWeapons.push(newWeapon);
+            aircraft.marker.setIcon(createAircraftIcon(aircraft.unitData, aircraft.mountedWeapons.length));
+            
+            // Add weapon ranges to the aircraft's effective ranges and redraw
+            if(weaponData.rangeRings) {
+                aircraft.effectiveRangeRings.push(...weaponData.rangeRings);
+                updateUnitRanges(aircraft);
+            }
+        }
+        
+        function unmountWeaponFromAircraft(aircraftInstanceId, weaponInstanceId) {
+            const aircraft = activeMapUnits.get(aircraftInstanceId);
+            if (!aircraft || !aircraft.mountedWeapons) return;
+            const weaponIndex = aircraft.mountedWeapons.findIndex(w => w.instanceId === weaponInstanceId);
+            if (weaponIndex > -1) {
+                const [removedWeapon] = aircraft.mountedWeapons.splice(weaponIndex, 1);
+                
+                // Remove the weapon's rings from the effective list and redraw
+                const removedWeaponData = unitLibrary[removedWeapon.weaponId];
+                if (removedWeaponData.rangeRings) {
+                    removedWeaponData.rangeRings.forEach(removedRing => {
+                        const ringIndex = aircraft.effectiveRangeRings.findIndex(r => r.name === removedRing.name && r.rangeNm === removedRing.rangeNm);
+                        if (ringIndex > -1) {
+                            aircraft.effectiveRangeRings.splice(ringIndex, 1);
+                        }
+                    });
+                }
+                
+                aircraft.marker.setIcon(createAircraftIcon(aircraft.unitData, aircraft.mountedWeapons.length));
+                updateUnitRanges(aircraft); // Redraw rings
+                map.closePopup();
+            }
+        }
+
+        // --- ACTION & TARGETING LOGIC ---
+        function setAction(type) {
+            const mapContainer = document.getElementById('map-container');
+            const targetingBtn = document.getElementById('targeting-btn');
+            const targetingPanel = document.getElementById('targeting-panel');
+
+            if (activeAction.armedUnit) {
+                const el = activeAction.armedUnit.marker.getElement();
+                if (el) el.style.filter = '';
+            }
+            activeAction.armedUnit = null;
+            activeAction.armedWeapon = null;
+            activeAction.shotsToFire = 0;
+
+            activeAction.type = type;
+
+            if (type === 'targeting') {
+                map.closePopup();
+                mapContainer.classList.add('targeting-cursor');
+                targetingBtn.textContent = 'Cancel Targeting';
+                targetingBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                targetingBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+                targetingPanel.style.transform = 'translateY(0)';
+                updateTargetingPanel();
+            } else {
+                mapContainer.classList.remove('targeting-cursor', 'move-cursor');
+                targetingBtn.textContent = 'Targeting Mode';
+                targetingBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                targetingBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+                targetingPanel.style.transform = 'translateY(100%)';
+            }
+        }
+
+        function selectUnitForTargeting(unit) {
+            if (!unit || unit.isJammed) return;
+            const hasWeapons = (unit.unitData.category === 'weapons' && (unit.ammo - unit.pendingTargets.length) > 0) || (unit.mountedWeapons && unit.mountedWeapons.some(w => (w.ammo - w.pendingTargets.length) > 0));
+            if (!hasWeapons) return;
+
+            if (activeAction.armedUnit) {
+                const el = activeAction.armedUnit.marker.getElement();
+                if (el) el.style.filter = '';
+            }
+            
+            activeAction.armedUnit = unit;
+            activeAction.armedWeapon = null;
+            activeAction.shotsToFire = 0;
+
+            const el = unit.marker.getElement();
+            if (el) el.style.filter = 'drop-shadow(0 0 8px #2563eb)';
+
+            updateTargetingPanel();
+        }
+
+        function armWeapon(weapon) {
+            activeAction.armedWeapon = weapon;
+            activeAction.shotsToFire = weapon.ammo - (weapon.pendingTargets || []).length;
+            
+            const el = activeAction.armedUnit.marker.getElement();
+            if (el) el.style.filter = 'drop-shadow(0 0 8px #f59e0b)';
+            updateTargetingPanel();
+        }
+
+        function updateTargetingPanel() {
+            const panelContent = document.getElementById('targeting-panel-content');
+            panelContent.innerHTML = '';
+
+            if (!activeAction.armedUnit) {
+                panelContent.innerHTML = `<p class="font-semibold">Select an entity you wish to arm.</p>`;
+                return;
+            }
+
+            const unit = activeAction.armedUnit;
+            if (activeAction.armedWeapon) {
+                const weaponData = unit.unitData.platformType === 'air' ? unitLibrary[activeAction.armedWeapon.weaponId] : unit.unitData;
+                panelContent.innerHTML = `<p class="font-semibold">Armed: <span class="text-amber-400">${unit.unitData.name} - ${weaponData.shortName}</span>. Select a target (${activeAction.shotsToFire} shots remaining).</p>`;
+                return;
+            }
+
+            const header = document.createElement('h3');
+            header.className = 'text-lg font-bold mb-2';
+            header.textContent = `Arming: ${unit.unitData.name}`;
+            panelContent.appendChild(header);
+
+            const weaponsList = document.createElement('div');
+            weaponsList.className = 'flex justify-center items-center gap-4';
+            
+            if (unit.unitData.platformType === 'air') {
+                if (unit.mountedWeapons.length > 0) {
+                    unit.mountedWeapons.forEach(weapon => {
+                        const availableAmmo = weapon.ammo - (weapon.pendingTargets || []).length;
+                        if (availableAmmo > 0) {
+                            const weaponData = unitLibrary[weapon.weaponId];
+                            const btn = document.createElement('button');
+                            btn.className = 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded';
+                            btn.textContent = `Arm ${weaponData.shortName} (${availableAmmo})`;
+                            btn.onclick = () => armWeapon(weapon);
+                            weaponsList.appendChild(btn);
+                        }
+                    });
+                }
+            } else {
+                const availableAmmo = unit.ammo - (unit.pendingTargets || []).length;
+                if (availableAmmo > 0) {
+                    const btn = document.createElement('button');
+                    btn.className = 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded';
+                    btn.textContent = `Arm ${unit.unitData.shortName} (${availableAmmo})`;
+                    btn.onclick = () => armWeapon(unit);
+                    weaponsList.appendChild(btn);
+                }
+            }
+             if (weaponsList.children.length === 0) {
+                weaponsList.textContent = 'No available weapons to arm.';
+            }
+
+            panelContent.appendChild(weaponsList);
+        }
+
+        function activateMoveMode(unitInstanceId) {
+            setAction('move');
+            const unit = activeMapUnits.get(unitInstanceId);
+            if (unit && unit.unitData.movable && !unit.isJammed) {
+                const el = unit.marker.getElement();
+                if (el) el.style.filter = `drop-shadow(0 0 8px #16a34a)`;
+                map.closePopup();
+            }
+        }
+
+        function setTarget(targetUnit, mapLatLng = null) {
+            const { armedWeapon, armedUnit } = activeAction;
+            if (!armedWeapon || !armedUnit) return;
+        
+            const targetLatLng = mapLatLng || (targetUnit ? targetUnit.marker.getLatLng() : null);
+            if (!targetLatLng) return;
+        
+            if (targetUnit && (targetUnit.instanceId === armedUnit.instanceId || targetUnit.unitData.force === armedUnit.unitData.force)) {
+                return;
+            }
+        
+            const trajectoryLine = L.polyline([armedUnit.marker.getLatLng(), targetLatLng], { color: 'red', weight: 2, className: 'trajectory-line' }).addTo(map);
+            armedWeapon.pendingTargets.push({ target: targetLatLng, line: trajectoryLine });
+            
+            activeAction.shotsToFire--;
+        
+            if (activeAction.shotsToFire <= 0) {
+                const el = armedUnit.marker.getElement();
+                if (el) el.style.filter = '';
+                activeAction.armedUnit = null;
+                activeAction.armedWeapon = null;
+            }
+            
+            updateTargetingPanel();
+        }
+        
+        function cancelAllTargets(unit) {
+            unit.pendingTargets.forEach(t => t.line.remove());
+            unit.pendingTargets = [];
+            if (unit.mountedWeapons) {
+                unit.mountedWeapons.forEach(w => {
+                    w.pendingTargets.forEach(t => t.line.remove());
+                    w.pendingTargets = [];
+                });
+            }
+        }
+
+        // --- SIMULATION & ANIMATION ---
+        function launchAllTargeted() {
+            const launchesToExecute = [];
+            activeMapUnits.forEach(unit => {
+                if (unit.pendingTargets.length > 0) {
+                    unit.pendingTargets.forEach(targetInfo => {
+                        launchesToExecute.push({ unit, weapon: null, target: targetInfo.target, line: targetInfo.line });
+                        unit.ammo--;
+                    });
+                    unit.pendingTargets = [];
+                }
+                if (unit.mountedWeapons) {
+                    unit.mountedWeapons.forEach(weapon => {
+                        if (weapon.pendingTargets.length > 0) {
+                            weapon.pendingTargets.forEach(targetInfo => {
+                                launchesToExecute.push({ unit, weapon, target: targetInfo.target, line: targetInfo.line });
+                                weapon.ammo--;
+                            });
+                            weapon.pendingTargets = [];
+                        }
+                    });
+                }
+            });
+            
+            setAction(null);
+            launchesToExecute.forEach(animateMissile);
+        }
+
+        function animateMissile(launch) {
+            launch.line.remove(); // Remove the planning line
+            const launcher = launch.unit;
+            const weaponInstance = launch.weapon ? launch.weapon : launcher;
+            const weaponData = launch.weapon ? unitLibrary[launch.weapon.weaponId] : launcher.unitData;
+            
+            const startPoint = launcher.marker.getLatLng();
+            const maxRangeMeters = (weaponData.maxRangeNm || (weaponData.rangeRings && weaponData.rangeRings.length > 0 ? weaponData.rangeRings[0].rangeNm : 0)) * NM_TO_METERS;
+            const isHit = startPoint.distanceTo(launch.target) <= maxRangeMeters;
+            const endPoint = isHit ? launch.target : getPointAtDistance(startPoint, launch.target, maxRangeMeters);
+            
+            const flyingMarker = L.marker(startPoint, { icon: createUrlIcon(weaponData.iconUrl), draggable: false, interactive: false }).addTo(map);
+            const duration = 3000;
+            const startTime = performance.now();
+            function animationStep(now) {
+                const progress = Math.min((now - startTime) / duration, 1);
+                flyingMarker.setLatLng(L.latLng(startPoint.lat + (endPoint.lat - startPoint.lat) * progress, startPoint.lng + (endPoint.lng - startPoint.lng) * progress));
+                if (progress < 1) {
+                    requestAnimationFrame(animationStep);
+                } else {
+                    flyingMarker.remove();
+                    const resultIconUrl = isHit ? impactIconUrl : missedIconUrl;
+                    const resultMarker = L.marker(endPoint, { icon: createUrlIcon(resultIconUrl, [48, 48]), interactive: false }).addTo(map);
+                    setTimeout(() => {
+                        resultMarker.remove();
+                        const currentLauncher = activeMapUnits.get(launcher.instanceId);
+                        if (currentLauncher && weaponInstance.ammo <= 0 && weaponInstance.pendingTargets.length === 0) {
+                            if (launch.weapon) {
+                                unmountWeaponFromAircraft(launcher.instanceId, weaponInstance.instanceId);
+                            } else {
+                                deleteUnit(launcher.instanceId);
+                            }
+                        }
+                    }, 2000);
+                }
+            }
+            requestAnimationFrame(animationStep);
+        }
+
+        function updateJammedStateVisuals(unit) {
+            const el = unit.marker.getElement();
+            if (el) el.classList.toggle('jammed-effect', unit.isJammed);
+        }
+
+        function updateUnitRanges(unit) {
+            // Clear existing circles
+            unit.rangeCircles.forEach(c => c.remove());
+            unit.rangeCircles = [];
+
+            // Draw new circles based on effective ranges
+            (unit.effectiveRangeRings || []).forEach(ringInfo => {
+                const style = ringStyles[ringInfo.type];
+                if (style) {
+                    const circle = L.circle(unit.marker.getLatLng(), {
+                        radius: ringInfo.rangeNm * NM_TO_METERS,
+                        ...style,
+                        originalStyle: style
+                    });
+                    circle.ringInfo = ringInfo;
+                    unit.rangeCircles.push(circle);
+                    circle.addTo(map);
+                }
+            });
+        }
+
+        function gameLoop(currentTime) {
+            const timeDelta = (currentTime - lastFrameTime) / 1000;
+            lastFrameTime = currentTime;
+
+            const jammers = Array.from(activeMapUnits.values()).filter(u => u.unitData.role === 'Electronic Attack');
+            const jammableUnits = Array.from(activeMapUnits.values()).filter(u => u.unitData.jammingEffects);
+
+            jammableUnits.forEach(unit => {
+                const wasJammed = unit.isJammed;
+                let isNowJammed = false;
+                let newEffectiveRanges = JSON.parse(JSON.stringify(unit.unitData.rangeRings || [])); // Default rings
+
+                for (const jammer of jammers) {
+                    if (jammer.unitData.force !== unit.unitData.force) {
+                        const distance = unit.marker.getLatLng().distanceTo(jammer.marker.getLatLng());
+                        if (distance <= jammer.unitData.eaRangeNm * NM_TO_METERS) {
+                            const jammerEffect = unit.unitData.jammingEffects[jammer.unitId];
+                            if (jammerEffect) {
+                                isNowJammed = true;
+                                newEffectiveRanges = JSON.parse(JSON.stringify(jammerEffect.degradedRings));
+                                break; // Apply first effective jammer
+                            }
+                        }
+                    }
+                }
+                
+                // Check if jamming state or ranges have changed
+                if (wasJammed !== isNowJammed || JSON.stringify(unit.effectiveRangeRings) !== JSON.stringify(newEffectiveRanges)) {
+                    unit.isJammed = isNowJammed;
+                    unit.effectiveRangeRings = newEffectiveRanges;
+                    
+                    if (unit.isJammed) {
+                        cancelAllTargets(unit);
+                        unit.destination = null; 
+                        if (unit.movePathLine) {
+                            unit.movePathLine.remove();
+                            unit.movePathLine = null;
+                        }
+                    }
+                    updateJammedStateVisuals(unit);
+                    updateUnitRanges(unit); // Redraw rings with new effective ranges
+                }
+            });
+
+            for (const unit of activeMapUnits.values()) {
+                if (unit.destination && unit.unitData.movable) {
+                    const currentPos = unit.marker.getLatLng();
+                    const distanceToTarget = currentPos.distanceTo(unit.destination);
+                    const moveDistance = (unit.unitData.speedKph * KPH_TO_MPS) * timeDelta;
+                    if (distanceToTarget <= moveDistance) {
+                        updateUnitPosition(unit, unit.destination);
+                        unit.destination = null;
+                        if (unit.movePathLine) {
+                            unit.movePathLine.remove();
+                            unit.movePathLine = null;
+                        }
+                    } else {
+                        updateUnitPosition(unit, getPointAtDistance(currentPos, unit.destination, moveDistance));
+                    }
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function getPointAtDistance(start, end, distance) {
+            const totalDist = map.distance(start, end);
+            if (distance >= totalDist) return end;
+            const ratio = distance / totalDist;
+            return L.latLng(start.lat + (end.lat - start.lat) * ratio, start.lng + (end.lng - start.lng) * ratio);
+        }
+        
+        function getPointOnCircle(center, radius) {
+            const angle = -45 * (Math.PI / 180); // 45 degrees to the top-right
+            const point = map.project(center);
+            const newPoint = L.point(point.x + radius * Math.cos(angle), point.y + radius * Math.sin(angle));
+            return map.unproject(newPoint);
+        }
+
+        // --- SCENE & UI MANAGEMENT ---
+        function clearMap() {
+            activeMapUnits.forEach((_, id) => deleteUnit(id));
+            activeMapUnits.clear();
+            nextUnitInstanceId = 0;
+            setAction(null);
+        }
+
+        function populateMenu() {
+            const menu = document.getElementById('unit-menu');
+            if (!menu) return;
+            menu.innerHTML = '';
+            const forces = {
+                red: { name: 'Red Force', color: 'red-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [] } },
+                blue: { name: 'Blue Force', color: 'blue-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [] } }
+            };
+            for (const [unitId, unit] of Object.entries(unitLibrary)) {
+                const category = unit.platform === 'aircraft' ? 'ordnance' : unit.category;
+                if (forces[unit.force]?.categories[category]) {
+                    forces[unit.force].categories[category].push({ ...unit, id: unitId });
+                }
+            }
+            for (const force of Object.values(forces)) {
+                const forceElement = document.createElement('details');
+                forceElement.className = 'group';
+                forceElement.open = true;
+                let forceHtml = `<summary class="flex justify-between items-center font-semibold cursor-pointer text-lg text-${force.color} p-2 rounded-md bg-gray-50 hover:bg-gray-100">${force.name}<svg class="w-5 h-5 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></summary><div class="pl-2 pt-2 space-y-3">`;
+                const categoryNames = { weapons: 'Weapons Platforms', land: 'Land Force', air: 'Air Force', maritime: 'Maritime Force', ordnance: 'Ordnance' };
+                for (const [catKey, catName] of Object.entries(categoryNames)) {
+                    const units = force.categories[catKey];
+                    if (units?.length > 0) {
+                        forceHtml += `<h4 class="font-semibold text-gray-600 text-sm border-b pb-1">${catName}</h4><div class="space-y-2 pl-2">`;
+                        units.forEach(unit => {
+                            const isOrdnance = unit.platform === 'aircraft';
+                            const divClass = `draggable-unit flex items-center p-2 rounded-md hover:bg-gray-200 transition-colors ${isOrdnance ? 'mountable-ordnance' : ''}`;
+                            forceHtml += `<div class="flex justify-between items-center">
+                                                <div class="${divClass}" draggable="true" data-unit-id="${unit.id}">
+                                                    <img src="${unit.iconUrl}" class="w-6 h-6 mr-3">
+                                                    <span class="text-sm text-gray-700">${unit.name}</span>
+                                                </div>
+                                                <button data-action="show-info" data-unit-id="${unit.id}" class="info-btn text-blue-500 hover:text-blue-700">&#9432;</button>
+                                              </div>`;
+                        });
+                        forceHtml += `</div>`;
+                    }
+                }
+                forceHtml += `</div>`;
+                forceElement.innerHTML = forceHtml;
+                menu.appendChild(forceElement);
+            }
+            document.querySelectorAll('.draggable-unit').forEach(item => {
+                item.addEventListener('dragstart', e => {
+                    e.dataTransfer.setData('text/plain', e.target.closest('.draggable-unit').dataset.unitId);
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
+            });
+        }
+
+
+        function setupInitialScene() {
+            clearMap();
+        }
+        
+        // --- APPLICATION INITIALIZER ---
+        function initializeApp() {
+            // Initialize map without default attribution
+            map = L.map('map', { attributionControl: false }).setView([-6.3, 146.8], 5);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            const targetingBtn = document.getElementById('targeting-btn');
+            const launchBtn = document.getElementById('launch-btn');
+            const saveBtn = document.getElementById('save-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const mapDropEl = document.getElementById('map');
+            const addEntityBtn = document.getElementById('add-entity-btn');
+            const entityModal = document.getElementById('entity-modal');
+            
+            addEntityBtn.addEventListener('click', () => {
+                document.getElementById('modal-step-1').classList.remove('hidden');
+                document.getElementById('modal-step-2').classList.add('hidden');
+                entityModal.classList.remove('hidden');
+            });
+
+            targetingBtn.addEventListener('click', () => {
+                const isAlreadyTargeting = activeAction.type === 'targeting';
+                setAction(isAlreadyTargeting ? null : 'targeting');
+            });
+            launchBtn.addEventListener('click', launchAllTargeted);
+
+            saveBtn.addEventListener('click', () => {
+                savedScenario = Array.from(activeMapUnits.values()).map(unit => ({
+                    latlng: unit.marker.getLatLng(),
+                    unitId: unit.unitId,
+                    instanceId: unit.instanceId,
+                    ammo: unit.ammo,
+                    mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
+                    destination: unit.destination
+                }));
+                saveBtn.textContent = "Saved!";
+                saveBtn.classList.replace('bg-indigo-600', 'bg-green-500');
+                saveBtn.classList.remove('hover:bg-indigo-700');
+                setTimeout(() => {
+                    saveBtn.textContent = "Save Scene";
+                    saveBtn.classList.replace('bg-green-500', 'bg-indigo-600');
+                    saveBtn.classList.add('hover:bg-indigo-700');
+                }, 1500);
+            });
+
+            resetBtn.addEventListener('click', () => {
+                clearMap();
+                if (savedScenario) {
+                    const maxId = savedScenario.reduce((max, unit) => {
+                        let highestId = unit.instanceId;
+                        if (unit.mountedWeapons) {
+                            const maxWeaponId = unit.mountedWeapons.reduce((wm, w) => Math.max(wm, w.instanceId), 0);
+                            highestId = Math.max(highestId, maxWeaponId);
+                        }
+                        return Math.max(max, highestId);
+                    }, -1);
+                    nextUnitInstanceId = maxId + 1;
+
+                    savedScenario.forEach(unit => {
+                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                    });
+                } else {
+                    setupInitialScene();
+                }
+            });
+            
+            clearBtn.addEventListener('click', clearMap);
+            
+            mapDropEl.addEventListener('dragover', e => e.preventDefault());
+            mapDropEl.addEventListener('drop', e => {
+                e.preventDefault();
+                const unitId = e.dataTransfer.getData('text/plain');
+                const unitData = unitLibrary[unitId];
+                if (!unitData || unitData.platform === 'aircraft') return;
+                const mapRect = mapDropEl.getBoundingClientRect();
+                const latLng = map.containerPointToLatLng([e.clientX - mapRect.left, e.clientY - mapRect.top]);
+                addCapability(latLng, unitId);
+            });
+
+            map.on('click', e => {
+                if (activeAction.type === 'targeting') {
+                    setTarget(null, e.latlng);
+                } else if (activeAction.type === 'move') {
+                    let moved = false;
+                    activeMapUnits.forEach(unit => {
+                        const el = unit.marker.getElement();
+                        if (el && el.style.filter) {
+                            unit.destination = e.latlng;
+                            if (unit.movePathLine) unit.movePathLine.remove();
+                            unit.movePathLine = L.polyline([unit.marker.getLatLng(), unit.destination], { color: 'green', weight: 2, className: 'move-path-line' }).addTo(map);
+                            moved = true;
+                        }
+                    });
+                    if (moved) setAction(null);
+                } else {
+                    if (activeInfoPopup) {
+                        map.closePopup(activeInfoPopup);
+                        activeInfoPopup = null;
+                    }
+                }
+            });
+
+            // --- LEGEND INITIALIZATION ---
+            const legend = L.control({position: 'bottomright'});
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'info legend');
+                const grades = [
+                    {style: ringStyles.sensor, label: 'Sensor Range'},
+                    {style: ringStyles.movement, label: 'Movement Range'},
+                    {style: ringStyles.ea, label: 'Electronic Attack'},
+                    {style: ringStyles.weapon, label: 'Weapon Range'},
+                ];
+                let legendHtml = '<h4>Range Types</h4>';
+                for (let i = 0; i < grades.length; i++) {
+                    legendHtml +=
+                        '<i style="background:' + grades[i].style.color + '; border: 1px solid ' + grades[i].style.color + '"></i> ' +
+                        grades[i].label + '<br>';
+                }
+                div.innerHTML = legendHtml;
+                return div;
+            };
+            legend.addTo(map);
+
+            // --- DELEGATED EVENT LISTENERS ---
+            document.body.addEventListener('click', e => {
+                const button = e.target.closest('[data-action]');
+                if (!button) return;
+
+                const { action, unitId, weaponId, type } = button.dataset;
+                
+                if (action === 'delete') {
+                    deleteUnit(parseInt(unitId));
+                }
+                if (action === 'unmount') {
+                    unmountWeaponFromAircraft(parseInt(unitId), parseInt(weaponId));
+                }
+                 if (action === 'show-info') {
+                    showLibraryInfoModal(unitId);
+                }
+                if (action === 'close-info-modal') {
+                    document.getElementById('library-info-modal').classList.add('hidden');
+                }
+                if (action === 'select-entity-type') {
+                    buildEntityForm(type);
+                    document.getElementById('modal-step-1').classList.add('hidden');
+                    document.getElementById('modal-step-2').classList.remove('hidden');
+                }
+                if (action === 'close-create-modal') {
+                    document.getElementById('entity-modal').classList.add('hidden');
+                }
+            });
+
+            // --- STARTUP ---
+            populateMenu();
+            setupInitialScene();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function buildEntityForm(type) {
+            const form = document.getElementById('entity-form');
+            const title = document.getElementById('form-title');
+            form.innerHTML = ''; // Clear previous form
+
+            let commonFields = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="shortName" class="block text-sm font-medium text-gray-700">Short Name (for map)</label>
+                        <input type="text" id="shortName" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Icon</label>
+                    <div id="icon-selector" class="icon-selector mt-1"></div>
+                    <input type="hidden" id="iconUrl" required>
+                </div>
+                <div>
+                    <label for="force" class="block text-sm font-medium text-gray-700">Force</label>
+                    <select id="force" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option>blue</option>
+                        <option>red</option>
+                    </select>
+                </div>
+            `;
+
+            let specificFields = '';
+            if (type === 'platform') {
+                title.textContent = 'Create New Platform';
+                specificFields = `
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                        <select id="category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="land">Land</option>
+                            <option value="air">Air</option>
+                            <option value="maritime">Maritime</option>
+                        </select>
+                    </div>
+                    <div id="hardpoints-field" class="hidden">
+                        <label for="hardpoints" class="block text-sm font-medium text-gray-700">Hardpoints</label>
+                        <input type="number" id="hardpoints" value="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                `;
+            } else { // type === 'weapon'
+                title.textContent = 'Create New Weapon System';
+                specificFields = `
+                     <input type="hidden" id="category" value="weapons">
+                     <input type="hidden" id="platform" value="aircraft">
+                     <div>
+                        <label for="ammo" class="block text-sm font-medium text-gray-700">Ammo</label>
+                        <input type="number" id="ammo" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="rangeNm" class="block text-sm font-medium text-gray-700">Range (NM)</label>
+                        <input type="number" id="rangeNm" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                `;
+            }
+
+            let buttons = `
+                <div class="flex justify-end space-x-2 pt-4">
+                    <button type="button" id="back-to-step-1" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Back</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Save Entity</button>
+                </div>
+            `;
+
+            form.innerHTML = commonFields + specificFields + buttons;
+
+            // Add dynamic behavior for platform form
+            if (type === 'platform') {
+                const categorySelect = form.querySelector('#category');
+                const hardpointsField = form.querySelector('#hardpoints-field');
+                categorySelect.addEventListener('change', (e) => {
+                    if (e.target.value === 'air') {
+                        hardpointsField.classList.remove('hidden');
+                    } else {
+                        hardpointsField.classList.add('hidden');
+                    }
+                });
+                 // Trigger change event to set initial state
+                categorySelect.dispatchEvent(new Event('change'));
+            }
+            
+            // Add back button functionality
+            form.querySelector('#back-to-step-1').addEventListener('click', () => {
+                document.getElementById('modal-step-1').classList.remove('hidden');
+                document.getElementById('modal-step-2').classList.add('hidden');
+            });
+
+            // Populate icon selector
+            const iconSelector = form.querySelector('#icon-selector');
+            iconSelector.innerHTML = '';
+            const uniqueIcons = [...new Set(Object.values(unitLibrary).map(u => u.iconUrl))];
+            uniqueIcons.forEach(url => {
+                const item = document.createElement('div');
+                item.className = 'icon-selector-item';
+                item.dataset.url = url;
+                item.innerHTML = `<img src="${url}" class="w-8 h-8">`;
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.icon-selector-item').forEach(el => el.classList.remove('selected'));
+                    item.classList.add('selected');
+                    form.querySelector('#iconUrl').value = url;
+                });
+                iconSelector.appendChild(item);
+            });
+
+            // Handle form submission
+            form.onsubmit = (e) => {
+                e.preventDefault();
+                const newId = `custom-${Date.now()}`;
+                
+                const newEntity = {
+                    name: form.querySelector('#name').value,
+                    shortName: form.querySelector('#shortName').value,
+                    force: form.querySelector('#force').value,
+                    iconUrl: form.querySelector('#iconUrl').value,
+                    category: form.querySelector('#category').value,
+                };
+
+                if (type === 'platform') {
+                    if (newEntity.category === 'air') {
+                        newEntity.platformType = 'air';
+                        newEntity.hardpoints = parseInt(form.querySelector('#hardpoints').value) || 0;
+                        newEntity.mountedWeapons = []; // BUG FIX: Ensure new aircraft have this array
+                    }
+                } else { // weapon
+                    newEntity.platform = 'aircraft';
+                    newEntity.ammo = parseInt(form.querySelector('#ammo').value);
+                    const weaponRange = parseInt(form.querySelector('#rangeNm').value);
+                    newEntity.rangeRings = [{ type: 'weapon', rangeNm: weaponRange, name: 'Weapon Range' }];
+                }
+
+                unitLibrary[newId] = newEntity;
+                populateMenu();
+                document.getElementById('entity-modal').classList.add('hidden');
+            };
+        }
+        
+        function showLibraryInfoModal(unitId) {
+            const modal = document.getElementById('library-info-modal');
+            const content = document.getElementById('library-info-content');
+            const unitData = unitLibrary[unitId];
+
+            if (!unitData) return;
+
+            let html = `<h3 class="text-xl font-bold mb-4">${unitData.name}</h3>`;
+            html += `<p><b>Force:</b> <span class="capitalize ${unitData.force === 'red' ? 'text-red-600' : 'text-blue-600'}">${unitData.force}</span></p>`;
+            html += `<p><b>Category:</b> <span class="capitalize">${unitData.category}</span></p>`;
+            
+            if (unitData.description) {
+                html += `<p class="text-sm text-gray-600 italic">${unitData.description}</p>`;
+            }
+
+            if (unitData.platformType) {
+                html += `<p><b>Platform:</b> <span class="capitalize">${unitData.platformType}</span></p>`;
+            }
+            if (unitData.hardpoints) {
+                html += `<p><b>Hardpoints:</b> ${unitData.hardpoints}</p>`;
+            }
+            if (unitData.ammo) {
+                html += `<p><b>Ammo:</b> ${unitData.ammo}</p>`;
+            }
+            
+            if (unitData.weaponSpeedMach) {
+                html += `<p><b>Weapon Speed:</b> Mach ${unitData.weaponSpeedMach}</p>`;
+            }
+            if (unitData.reloadTimeHours) {
+                html += `<p><b>Reload Time:</b> ${unitData.reloadTimeHours} hours</p>`;
+            }
+
+            if (unitData.rangeRings && unitData.rangeRings.length > 0) {
+                html += `<h4 class="font-semibold mt-4 border-b">Capabilities:</h4><ul class="list-disc list-inside">`;
+                unitData.rangeRings.forEach(ring => {
+                    html += `<li>${ring.name}: ${ring.rangeNm} NM</li>`;
+                });
+                html += `</ul>`;
+            }
+
+            html += `<button data-action="close-info-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Close</button>`;
+
+            content.innerHTML = html;
+            modal.classList.remove('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
