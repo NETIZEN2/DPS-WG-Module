@@ -42,6 +42,19 @@
             color: #1f2937; /* gray-800 */
             text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white;
         }
+        .base-label {
+            transform: translate(-50%, -50%);
+        }
+        .base-label div {
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #9ca3af; /* gray-400 */
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1f2937; /* gray-800 */
+            white-space: nowrap;
+        }
         /* Style for draggable items in the menu */
         .draggable-unit { cursor: grab; }
         .draggable-unit:active { cursor: grabbing; }
@@ -183,6 +196,10 @@
             <!-- Simulation Controls -->
             <div class="absolute top-4 left-4 z-[1000] bg-white p-2 rounded-lg shadow-lg flex flex-col space-y-2">
                 <div class="flex space-x-2">
+                    <button id="toggle-rings-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Hide Range Rings</button>
+                    <button id="add-label-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">Add Base Label</button>
+                </div>
+                <div class="flex space-x-2">
                     <button id="targeting-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
                     <button id="launch-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
                 </div>
@@ -255,7 +272,9 @@
         var savedScenario = null;
         var nextUnitInstanceId = 0;
         var lastFrameTime = performance.now();
-        var activeInfoPopup = null; 
+        var activeInfoPopup = null;
+        var rangeRingsVisible = true;
+        var labelingMode = false;
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
@@ -610,7 +629,7 @@
             });
             
             marker.on('mouseover', () => {
-                if (activeAction.type) return;
+                if (activeAction.type || !rangeRingsVisible) return;
                 unitObject.rangeCircles.forEach(circle => {
                     circle.setStyle({ weight: 3, opacity: 1 });
                     const point = getPointOnCircle(circle.getLatLng(), circle.getRadius());
@@ -626,7 +645,7 @@
             });
 
             marker.on('mouseout', () => {
-                if (activeAction.type) return;
+                if (activeAction.type || !rangeRingsVisible) return;
                 unitObject.rangeCircles.forEach(circle => {
                     circle.setStyle(circle.options.originalStyle);
                 });
@@ -987,7 +1006,7 @@
                     });
                     circle.ringInfo = ringInfo;
                     unit.rangeCircles.push(circle);
-                    circle.addTo(map);
+                    if (rangeRingsVisible) circle.addTo(map);
                 }
             });
         }
@@ -1147,6 +1166,8 @@
             const saveBtn = document.getElementById('save-btn');
             const resetBtn = document.getElementById('reset-btn');
             const clearBtn = document.getElementById('clear-btn');
+            const toggleRingsBtn = document.getElementById('toggle-rings-btn');
+            const addLabelBtn = document.getElementById('add-label-btn');
             const mapDropEl = document.getElementById('map');
             const addEntityBtn = document.getElementById('add-entity-btn');
             const entityModal = document.getElementById('entity-modal');
@@ -1162,6 +1183,29 @@
                 setAction(isAlreadyTargeting ? null : 'targeting');
             });
             launchBtn.addEventListener('click', launchAllTargeted);
+
+            toggleRingsBtn.addEventListener('click', () => {
+                rangeRingsVisible = !rangeRingsVisible;
+                activeMapUnits.forEach(unit => {
+                    unit.rangeCircles.forEach(circle => {
+                        if (rangeRingsVisible) {
+                            circle.addTo(map);
+                        } else {
+                            circle.remove();
+                        }
+                    });
+                    unit.ringLabels.forEach(label => label.remove());
+                    unit.ringLabels = [];
+                });
+                toggleRingsBtn.textContent = rangeRingsVisible ? 'Hide Range Rings' : 'Show Range Rings';
+            });
+
+            addLabelBtn.addEventListener('click', () => {
+                labelingMode = !labelingMode;
+                addLabelBtn.textContent = labelingMode ? 'Click map to place' : 'Add Base Label';
+                addLabelBtn.classList.toggle('bg-purple-700', labelingMode);
+                addLabelBtn.classList.toggle('bg-purple-600', !labelingMode);
+            });
 
             saveBtn.addEventListener('click', () => {
                 savedScenario = Array.from(activeMapUnits.values()).map(unit => ({
@@ -1217,7 +1261,35 @@
             });
 
             map.on('click', e => {
-                if (activeAction.type === 'targeting') {
+                if (labelingMode) {
+                    const name = prompt('Enter base name:');
+                    if (name) {
+                        let labelName = name;
+                        const labelMarker = L.marker(e.latlng, {
+                            draggable: true,
+                            icon: L.divIcon({
+                                className: 'base-label',
+                                html: `<div>${labelName}</div>`,
+                                iconSize: [0, 0]
+                            })
+                        }).addTo(map);
+                        labelMarker.on('dblclick', () => {
+                            const newName = prompt('Enter base name:', labelName);
+                            if (newName) {
+                                labelName = newName;
+                                labelMarker.setIcon(L.divIcon({
+                                    className: 'base-label',
+                                    html: `<div>${labelName}</div>`,
+                                    iconSize: [0, 0]
+                                }));
+                            }
+                        });
+                    }
+                    labelingMode = false;
+                    addLabelBtn.textContent = 'Add Base Label';
+                    addLabelBtn.classList.remove('bg-purple-700');
+                    addLabelBtn.classList.add('bg-purple-600');
+                } else if (activeAction.type === 'targeting') {
                     setTarget(null, e.latlng);
                 } else if (activeAction.type === 'move') {
                     let moved = false;
