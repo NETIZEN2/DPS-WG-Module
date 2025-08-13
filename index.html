@@ -349,13 +349,16 @@
                 rangeRings: [] 
             },
             'mort-ddg': {
-                name: 'Mort Class DDG',
+                name: 'HMAS Yass Mort Class DDG',
                 shortName: 'DDG',
                 force: 'blue',
                 category: 'maritime',
+                platformType: 'maritime',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/256/15455/15455562.png',
                 movable: true,
                 speedKph: 37, // 20 kts
+                hardpoints: 8,
+                mountableWeapons: ['throwing-axe'],
                 rangeRings: [
                     { type: 'movement', rangeNm: 3000, name: 'Travel Radius' }
                 ]
@@ -444,7 +447,7 @@
                 shortName: 'RGM-209',
                 force: 'blue',
                 category: 'weapons',
-                platform: 'aircraft',
+                platform: 'ship',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 1,
                 weaponSpeedMach: 0.8,
@@ -480,7 +483,7 @@
         // --- UTILITY & ICON CREATION ---
         const createUrlIcon = (url, size = [32, 32]) => L.icon({ iconUrl: url, iconSize: size, iconAnchor: [size[0]/2, size[1]], popupAnchor: [0, -size[1]] });
         
-        function createAircraftIcon(unitData, weaponCount) {
+        function createHardpointIcon(unitData, weaponCount) {
             const badgeHtml = weaponCount > 0 ? `<div class="weapon-badge">${weaponCount}</div>` : '';
             return L.divIcon({
                 className: 'custom-div-icon',
@@ -504,7 +507,7 @@
                 rangeCircles: []
             })) : [];
 
-            const icon = unitData.platformType === 'air' ? createAircraftIcon(unitData, rehydratedMountedWeapons.length) : createUrlIcon(unitData.iconUrl);
+            const icon = unitData.hardpoints ? createHardpointIcon(unitData, rehydratedMountedWeapons.length) : createUrlIcon(unitData.iconUrl);
             const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
             marker.instanceId = currentInstanceId;
 
@@ -517,8 +520,8 @@
                 marker, nameMarker, rangeCircles: [], unitId, unitData,
                 instanceId: currentInstanceId,
                 ammo: ammo !== null ? ammo : unitData.ammo,
-                pendingTargets: [], 
-                mountedWeapons: unitData.platformType === 'air' ? rehydratedMountedWeapons : [],
+                pendingTargets: [],
+                mountedWeapons: unitData.hardpoints ? rehydratedMountedWeapons : [],
                 destination: destination ? L.latLng(destination.lat, destination.lng) : null,
                 movePathLine: null,
                 isJammed: false,
@@ -658,7 +661,7 @@
                 unitObject.ringLabels = [];
             });
 
-            if (unitData.platformType === 'air') {
+            if (unitData.hardpoints) {
                 const el = marker.getElement();
                 if (el) {
                     el.addEventListener('dragenter', e => { e.preventDefault(); el.classList.add('drop-target-highlight'); });
@@ -667,7 +670,7 @@
                     el.addEventListener('drop', e => {
                         e.preventDefault();
                         el.classList.remove('drop-target-highlight');
-                        mountWeaponOnAircraft(unitObject, e.dataTransfer.getData('text/plain'));
+                        mountWeaponOnPlatform(unitObject, e.dataTransfer.getData('text/plain'));
                     });
                 }
             }
@@ -683,7 +686,7 @@
                 html += `<p class="text-xs text-gray-500 italic">${unitData.description}</p>`;
             }
 
-            if (unitData.platformType === 'air') {
+            if (unitData.hardpoints) {
                 html += `<p><b>Hardpoints:</b> ${unitObject.mountedWeapons.length} / ${unitData.hardpoints}</p>`;
                 if (unitObject.mountedWeapons.length > 0) {
                     html += `<div class="border-t pt-1 mt-1 space-y-1">`;
@@ -718,43 +721,46 @@
             return html;
         }
 
-        // --- AIRCRAFT LOADOUT LOGIC ---
-        function mountWeaponOnAircraft(aircraft, weaponUnitId) {
+        // --- PLATFORM LOADOUT LOGIC ---
+        function mountWeaponOnPlatform(platform, weaponUnitId) {
             const weaponData = unitLibrary[weaponUnitId];
-            if (!aircraft || !aircraft.mountedWeapons || weaponData.platform !== 'aircraft' || aircraft.unitData.force !== weaponData.force) return;
-            if (aircraft.mountedWeapons.length >= aircraft.unitData.hardpoints) return;
+            if (!platform || !platform.mountedWeapons || platform.unitData.force !== weaponData.force) return;
+            const platformMap = { air: 'aircraft', maritime: 'ship' };
+            if (platformMap[platform.unitData.platformType] !== weaponData.platform) return;
+            if (platform.unitData.mountableWeapons && !platform.unitData.mountableWeapons.includes(weaponUnitId)) return;
+            if (platform.mountedWeapons.length >= platform.unitData.hardpoints) return;
             const newWeapon = { weaponId: weaponUnitId, ammo: weaponData.ammo, instanceId: nextUnitInstanceId++, pendingTargets: [], rangeCircles: [] };
-            
-            aircraft.mountedWeapons.push(newWeapon);
-            aircraft.marker.setIcon(createAircraftIcon(aircraft.unitData, aircraft.mountedWeapons.length));
-            
-            // Add weapon ranges to the aircraft's effective ranges and redraw
+
+            platform.mountedWeapons.push(newWeapon);
+            platform.marker.setIcon(createHardpointIcon(platform.unitData, platform.mountedWeapons.length));
+
+            // Add weapon ranges to the platform's effective ranges and redraw
             if(weaponData.rangeRings) {
-                aircraft.effectiveRangeRings.push(...weaponData.rangeRings);
-                updateUnitRanges(aircraft);
+                platform.effectiveRangeRings.push(...weaponData.rangeRings);
+                updateUnitRanges(platform);
             }
         }
-        
-        function unmountWeaponFromAircraft(aircraftInstanceId, weaponInstanceId) {
-            const aircraft = activeMapUnits.get(aircraftInstanceId);
-            if (!aircraft || !aircraft.mountedWeapons) return;
-            const weaponIndex = aircraft.mountedWeapons.findIndex(w => w.instanceId === weaponInstanceId);
+
+        function unmountWeaponFromPlatform(platformInstanceId, weaponInstanceId) {
+            const platform = activeMapUnits.get(platformInstanceId);
+            if (!platform || !platform.mountedWeapons) return;
+            const weaponIndex = platform.mountedWeapons.findIndex(w => w.instanceId === weaponInstanceId);
             if (weaponIndex > -1) {
-                const [removedWeapon] = aircraft.mountedWeapons.splice(weaponIndex, 1);
-                
+                const [removedWeapon] = platform.mountedWeapons.splice(weaponIndex, 1);
+
                 // Remove the weapon's rings from the effective list and redraw
                 const removedWeaponData = unitLibrary[removedWeapon.weaponId];
                 if (removedWeaponData.rangeRings) {
                     removedWeaponData.rangeRings.forEach(removedRing => {
-                        const ringIndex = aircraft.effectiveRangeRings.findIndex(r => r.name === removedRing.name && r.rangeNm === removedRing.rangeNm);
+                        const ringIndex = platform.effectiveRangeRings.findIndex(r => r.name === removedRing.name && r.rangeNm === removedRing.rangeNm);
                         if (ringIndex > -1) {
-                            aircraft.effectiveRangeRings.splice(ringIndex, 1);
+                            platform.effectiveRangeRings.splice(ringIndex, 1);
                         }
                     });
                 }
-                
-                aircraft.marker.setIcon(createAircraftIcon(aircraft.unitData, aircraft.mountedWeapons.length));
-                updateUnitRanges(aircraft); // Redraw rings
+
+                platform.marker.setIcon(createHardpointIcon(platform.unitData, platform.mountedWeapons.length));
+                updateUnitRanges(platform); // Redraw rings
                 map.closePopup();
             }
         }
@@ -832,7 +838,7 @@
 
             const unit = activeAction.armedUnit;
             if (activeAction.armedWeapon) {
-                const weaponData = unit.unitData.platformType === 'air' ? unitLibrary[activeAction.armedWeapon.weaponId] : unit.unitData;
+                const weaponData = unit.unitData.hardpoints ? unitLibrary[activeAction.armedWeapon.weaponId] : unit.unitData;
                 panelContent.innerHTML = `<p class="font-semibold">Armed: <span class="text-amber-400">${unit.unitData.name} - ${weaponData.shortName}</span>. Select a target (${activeAction.shotsToFire} shots remaining).</p>`;
                 return;
             }
@@ -845,7 +851,7 @@
             const weaponsList = document.createElement('div');
             weaponsList.className = 'flex justify-center items-center gap-4';
             
-            if (unit.unitData.platformType === 'air') {
+            if (unit.unitData.hardpoints) {
                 if (unit.mountedWeapons.length > 0) {
                     unit.mountedWeapons.forEach(weapon => {
                         const availableAmmo = weapon.ammo - (weapon.pendingTargets || []).length;
@@ -979,7 +985,7 @@
                         const currentLauncher = activeMapUnits.get(launcher.instanceId);
                         if (currentLauncher && weaponInstance.ammo <= 0 && weaponInstance.pendingTargets.length === 0) {
                             if (launch.weapon) {
-                                unmountWeaponFromAircraft(launcher.instanceId, weaponInstance.instanceId);
+                                unmountWeaponFromPlatform(launcher.instanceId, weaponInstance.instanceId);
                             } else {
                                 deleteUnit(launcher.instanceId);
                             }
@@ -1111,7 +1117,7 @@
                 blue: { name: 'Blue Force', color: 'blue-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [], space: [] } }
             };
             for (const [unitId, unit] of Object.entries(unitLibrary)) {
-                const category = unit.platform === 'aircraft' ? 'ordnance' : unit.category;
+                const category = (unit.platform === 'aircraft' || unit.platform === 'ship') ? 'ordnance' : unit.category;
                 if (forces[unit.force]?.categories[category]) {
                     forces[unit.force].categories[category].push({ ...unit, id: unitId });
                 }
@@ -1127,7 +1133,7 @@
                     if (units?.length > 0) {
                         forceHtml += `<h4 class="font-semibold text-gray-600 text-sm border-b pb-1">${catName}</h4><div class="space-y-2 pl-2">`;
                         units.forEach(unit => {
-                            const isOrdnance = unit.platform === 'aircraft';
+                            const isOrdnance = unit.platform === 'aircraft' || unit.platform === 'ship';
                             const divClass = `draggable-unit flex items-center p-2 rounded-md hover:bg-gray-200 transition-colors ${isOrdnance ? 'mountable-ordnance' : ''}`;
                             forceHtml += `<div class="flex justify-between items-center">
                                                 <div class="${divClass}" draggable="true" data-unit-id="${unit.id}">
@@ -1251,7 +1257,7 @@
                 e.preventDefault();
                 const unitId = e.dataTransfer.getData('text/plain');
                 const unitData = unitLibrary[unitId];
-                if (!unitData || unitData.platform === 'aircraft') return;
+                if (!unitData || unitData.platform === 'aircraft' || unitData.platform === 'ship') return;
                 const mapRect = mapDropEl.getBoundingClientRect();
                 const latLng = map.containerPointToLatLng([e.clientX - mapRect.left, e.clientY - mapRect.top]);
                 addCapability(latLng, unitId);
@@ -1312,7 +1318,7 @@
                     deleteUnit(parseInt(unitId));
                 }
                 if (action === 'unmount') {
-                    unmountWeaponFromAircraft(parseInt(unitId), parseInt(weaponId));
+                    unmountWeaponFromPlatform(parseInt(unitId), parseInt(weaponId));
                 }
                  if (action === 'show-info') {
                     showLibraryInfoModal(unitId);
