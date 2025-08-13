@@ -278,6 +278,7 @@
                 shortName: 'Red HQ',
                 force: 'red',
                 category: 'land',
+                classification: 'land',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png',
                 rangeRings: []
             },
@@ -286,6 +287,7 @@
                 shortName: 'SA-12',
                 force: 'red',
                 category: 'weapons',
+                classification: 'land',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 8,
                 movable: true,
@@ -294,19 +296,19 @@
                 reloadTimeHours: 6,
                 weaponSpeedMach: 1,
                 rangeRings: [
-                    { type: 'sensor', rangeNm: 300, name: 'Sensor (Non-Manoeuvring)' },
-                    { type: 'sensor', rangeNm: 140, name: 'Sensor (Fighter)' },
-                    { type: 'sensor', rangeNm: 60, name: 'Sensor (Cruise Missile)' },
-                    { type: 'sensor', rangeNm: 20, name: 'Sensor (Hypersonic)' },
+                    { type: 'sensor', rangeNm: 300, name: 'Sensor (Non-Manoeuvring)', targetClass: 'large-ac' },
+                    { type: 'sensor', rangeNm: 140, name: 'Sensor (Fighter)',       targetClass: 'fighter' },
+                    { type: 'sensor', rangeNm: 60,  name: 'Sensor (Cruise Missile)', targetClass: 'cruise-missile' },
+                    { type: 'sensor', rangeNm: 20,  name: 'Sensor (Hypersonic)',     targetClass: 'hypersonic' },
                     { type: 'weapon', rangeNm: 100, name: 'Weapon Range' }
                 ],
                 jammingEffects: {
                     'ea-30g': { // Jammed by EA-30G Flowler
                         degradedRings: [
-                            { type: 'sensor', rangeNm: 150, name: 'Sensor (Non-Manoeuvring)' },
-                            { type: 'sensor', rangeNm: 50,  name: 'Sensor (Fighter)' },
-                            { type: 'sensor', rangeNm: 30,  name: 'Sensor (Cruise Missile)' },
-                            { type: 'sensor', rangeNm: 20,  name: 'Sensor (Hypersonic)' },
+                            { type: 'sensor', rangeNm: 150, name: 'Sensor (Non-Manoeuvring)', targetClass: 'large-ac' },
+                            { type: 'sensor', rangeNm: 50,  name: 'Sensor (Fighter)',       targetClass: 'fighter' },
+                            { type: 'sensor', rangeNm: 30,  name: 'Sensor (Cruise Missile)', targetClass: 'cruise-missile' },
+                            { type: 'sensor', rangeNm: 20,  name: 'Sensor (Hypersonic)',     targetClass: 'hypersonic' },
                             { type: 'weapon', rangeNm: 100, name: 'Weapon Range' }
                         ]
                     }
@@ -317,6 +319,7 @@
                 shortName: '111/12 ASCM',
                 force: 'red',
                 category: 'weapons',
+                classification: 'land',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/2369/2369415.png',
                 description: '111 Reg / 12 Battalion',
                 ammo: 14,
@@ -335,6 +338,7 @@
                 shortName: '176th CDB',
                 force: 'red',
                 category: 'space',
+                classification: 'space',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/8868/8868507.png',
                 rangeRings: []
             },
@@ -343,10 +347,11 @@
             'blue-hq': {
                 name: 'Bunnings Shed Joint HQ',
                 shortName: 'Blue HQ',
-                force: 'blue', 
-                category: 'land', 
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png', 
-                rangeRings: [] 
+                force: 'blue',
+                category: 'land',
+                classification: 'land',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png',
+                rangeRings: []
             },
             'mort-ddg': {
                 name: 'HMAS Yass Mort Class DDG',
@@ -354,6 +359,7 @@
                 force: 'blue',
                 category: 'maritime',
                 platformType: 'maritime',
+                classification: 'surface',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/256/15455/15455562.png',
                 movable: true,
                 speedKph: 37, // 20 kts
@@ -366,12 +372,13 @@
             'ea-30g': {
                 name: 'EA-30G Flowler',
                 shortName: 'EA-30G',
-                force: 'blue', 
-                category: 'air', 
-                platformType: 'air', 
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/15631/15631307.png', 
+                force: 'blue',
+                category: 'air',
+                platformType: 'air',
+                classification: 'large-ac',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/15631/15631307.png',
                 hardpoints: 0, // Assuming no weapons, just jammer
-                role: 'Electronic Attack', 
+                role: 'Electronic Attack',
                 jammerId: 'alq-77',
                 eaRangeNm: 400,
                 speedKph: 988, // Mach 0.8
@@ -380,13 +387,14 @@
                     { type: 'movement', rangeNm: 1000, name: 'Max Range' }
                 ]
             },
-            'f-55': { 
-                name: 'F-55 Flogger', 
-                shortName: 'F-55', 
-                force: 'blue', 
-                category: 'air', 
-                platformType: 'air', 
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2089/2089910.png', 
+            'f-55': {
+                name: 'F-55 Flogger',
+                shortName: 'F-55',
+                force: 'blue',
+                category: 'air',
+                platformType: 'air',
+                classification: 'fighter',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2089/2089910.png',
                 hardpoints: 6,
                 speedKph: 988, // Mach 0.8
                 rangeRings: [
@@ -402,6 +410,7 @@
                 force: 'blue',
                 category: 'air',
                 platformType: 'air',
+                classification: 'large-ac',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7893/7893970.png',
                 speedKph: 617, // Mach 0.5
                 hardpoints: 0,
@@ -415,6 +424,7 @@
                 shortName: '76th SF',
                 force: 'blue',
                 category: 'land',
+                classification: 'land',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/9924/9924283.png',
                 rangeRings: [
                     { type: 'weapon', rangeNm: 150, name: 'Land Strike' },
@@ -426,6 +436,7 @@
                 shortName: 'Long Pole',
                 force: 'blue',
                 category: 'weapons',
+                classification: 'hypersonic',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/2369/2369415.png',
                 ammo: 4, // Assumed
                 rangeRings: [
@@ -438,6 +449,7 @@
                 force: 'blue',
                 category: 'weapons',
                 platform: 'aircraft',
+                classification: 'cruise-missile',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 1,
                 rangeRings: [ { type: 'weapon', rangeNm: 20, name: 'Weapon Range' } ]
@@ -448,6 +460,7 @@
                 force: 'blue',
                 category: 'weapons',
                 platform: 'ship',
+                classification: 'cruise-missile',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 1,
                 weaponSpeedMach: 0.8,
@@ -459,6 +472,7 @@
                 force: 'blue',
                 category: 'weapons',
                 platform: 'aircraft',
+                classification: 'cruise-missile',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 1,
                 weaponSpeedMach: 0.8,
@@ -470,6 +484,7 @@
                 force: 'blue',
                 category: 'weapons',
                 platform: 'aircraft',
+                classification: 'cruise-missile',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 1,
                 rangeRings: [] // Range would depend on the specific missile
@@ -892,17 +907,37 @@
             }
         }
 
+        function isTargetDetectedByForce(force, targetUnit) {
+            const targetClass = targetUnit.unitData.classification;
+            for (const unit of activeMapUnits.values()) {
+                if (unit.unitData.force !== force) continue;
+                for (const ring of unit.effectiveRangeRings || []) {
+                    if (ring.type !== 'sensor') continue;
+                    if (ring.targetClass && ring.targetClass !== targetClass) continue;
+                    const distance = unit.marker.getLatLng().distanceTo(targetUnit.marker.getLatLng());
+                    if (distance <= ring.rangeNm * NM_TO_METERS) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         function setTarget(targetUnit, mapLatLng = null) {
             const { armedWeapon, armedUnit } = activeAction;
             if (!armedWeapon || !armedUnit) return;
-        
+
             const targetLatLng = mapLatLng || (targetUnit ? targetUnit.marker.getLatLng() : null);
             if (!targetLatLng) return;
-        
+
             if (targetUnit && (targetUnit.instanceId === armedUnit.instanceId || targetUnit.unitData.force === armedUnit.unitData.force)) {
                 return;
             }
-        
+
+            if (targetUnit && !isTargetDetectedByForce(armedUnit.unitData.force, targetUnit)) {
+                return;
+            }
+
             const trajectoryLine = L.polyline([armedUnit.marker.getLatLng(), targetLatLng], { color: 'red', weight: 2, className: 'trajectory-line' }).addTo(map);
             armedWeapon.pendingTargets.push({ target: targetLatLng, line: trajectoryLine });
             
