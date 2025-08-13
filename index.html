@@ -89,7 +89,20 @@
         }
         /* Highlight for valid drop target */
         .drop-target-highlight { filter: drop-shadow(0 0 8px #22c55e) !important; }
-        
+
+        /* Detected unit effect */
+        .tracked-effect {
+            animation: detect-pulse 1.5s infinite;
+            filter: drop-shadow(0 0 4px #fbbf24);
+        }
+        @keyframes detect-pulse {
+            0% { filter: drop-shadow(0 0 0 #fbbf24); }
+            50% { filter: drop-shadow(0 0 8px #fbbf24); }
+            100% { filter: drop-shadow(0 0 0 #fbbf24); }
+        }
+
+        .detection-line { pointer-events: none; }
+
         /* NEW: Targeting Panel styles */
         #targeting-panel {
             transition: transform 0.3s ease-in-out;
@@ -267,7 +280,8 @@
             sensor: { color: '#0ea5e9', weight: 1.5, dashArray: '2, 8', fillOpacity: 0.05 }, // Cyan colour
             movement: { color: '#22c55e', weight: 1.5, dashArray: '10, 10', fillOpacity: 0.05 }, // Green colour
             ea: { color: '#a855f7', weight: 2, className: 'jamming-circle-pulse', fillOpacity: 0.1 }, // Purple colour
-            weapon: { color: '#ef4444', weight: 2, dashArray: null, fillOpacity: 0.1 } // Red colour
+            weapon: { color: '#ef4444', weight: 2, dashArray: null, fillOpacity: 0.1 }, // Red colour
+            detection: { color: '#fbbf24', weight: 3, dashArray: null, fillOpacity: 0.15 } // Amber for active detection
         };
 
         // --- UNIT DATA LIBRARY ---
@@ -526,6 +540,8 @@
                 movePathLine: null,
                 isJammed: false,
                 ringLabels: [],
+                detectedTargets: [],
+                detectedBy: [],
                 effectiveRangeRings: JSON.parse(JSON.stringify(unitData.rangeRings || [])) // Deep copy
             };
             
@@ -570,7 +586,32 @@
                 unitToRemove.rangeCircles.forEach(c => c.remove());
                 if (unitToRemove.movePathLine) unitToRemove.movePathLine.remove();
                 unitToRemove.pendingTargets?.forEach(t => t.line.remove());
+                unitToRemove.detectedTargets?.forEach(det => {
+                    det.line.remove();
+                    const target = activeMapUnits.get(det.unitId);
+                    if (target?.detectedBy) {
+                        target.detectedBy = target.detectedBy.filter(d => d.unitId !== instanceId);
+                        if (target.detectedBy.length === 0) {
+                            const el = target.marker.getElement();
+                            if (el) el.classList.remove('tracked-effect');
+                        }
+                    }
+                });
+                if (unitToRemove.detectedBy) {
+                    unitToRemove.detectedBy.forEach(det => {
+                        const detector = activeMapUnits.get(det.unitId);
+                        if (detector) {
+                            const idx = detector.detectedTargets.findIndex(dt => dt.unitId === instanceId);
+                            if (idx !== -1) {
+                                detector.detectedTargets[idx].line.remove();
+                                detector.detectedTargets.splice(idx, 1);
+                                updateUnitRanges(detector);
+                            }
+                        }
+                    });
+                }
                 activeMapUnits.delete(instanceId);
+                updateDetections();
             }
         }
 
@@ -1008,16 +1049,96 @@
 
             // Draw new circles based on effective ranges
             (unit.effectiveRangeRings || []).forEach(ringInfo => {
-                const style = ringStyles[ringInfo.type];
-                if (style) {
+                const baseStyle = ringStyles[ringInfo.type];
+                if (baseStyle) {
+                    const appliedStyle = ringInfo.isDetecting
+                        ? { ...baseStyle, ...ringStyles.detection }
+                        : baseStyle;
                     const circle = L.circle(unit.marker.getLatLng(), {
                         radius: ringInfo.rangeNm * NM_TO_METERS,
-                        ...style,
-                        originalStyle: style
+                        ...appliedStyle,
+                        originalStyle: appliedStyle
                     });
                     circle.ringInfo = ringInfo;
                     unit.rangeCircles.push(circle);
                     if (rangeRingsVisible) circle.addTo(map);
+                }
+            });
+        }
+
+        function getRingClassification(ringName) {
+            const name = ringName.toLowerCase();
+            if (name.includes('track')) return 'track';
+            if (name.includes('weapon') || name.includes('engage')) return 'engagement';
+            return 'detect';
+        }
+
+        function updateDetections() {
+            const units = Array.from(activeMapUnits.values());
+            units.forEach(sensorUnit => {
+                const sensorRings = (sensorUnit.effectiveRangeRings || []).filter(r => r.type === 'sensor');
+                if (sensorRings.length === 0) return;
+
+                const prevRingStates = sensorRings.map(r => r.isDetecting);
+                sensorRings.forEach(r => r.isDetecting = false);
+
+                const currentDetections = new Set();
+
+                units.forEach(targetUnit => {
+                    if (targetUnit.unitData.force === sensorUnit.unitData.force) return;
+                    const distance = sensorUnit.marker.getLatLng().distanceTo(targetUnit.marker.getLatLng());
+                    let detectedRing = null;
+                    for (const ring of sensorRings) {
+                        if (distance <= ring.rangeNm * NM_TO_METERS) {
+                            ring.isDetecting = true;
+                            detectedRing = ring;
+                            break;
+                        }
+                    }
+                    if (detectedRing) {
+                        currentDetections.add(targetUnit.instanceId);
+                        let detEntry = sensorUnit.detectedTargets.find(dt => dt.unitId === targetUnit.instanceId);
+                        if (!detEntry) {
+                            const classification = getRingClassification(detectedRing.name);
+                            const line = L.polyline([sensorUnit.marker.getLatLng(), targetUnit.marker.getLatLng()], {
+                                color: ringStyles.detection.color,
+                                weight: 1,
+                                dashArray: '4,4',
+                                className: 'detection-line'
+                            }).addTo(map);
+                            detEntry = { unitId: targetUnit.instanceId, target: targetUnit, classification, line };
+                            sensorUnit.detectedTargets.push(detEntry);
+                            if (!targetUnit.detectedBy) targetUnit.detectedBy = [];
+                            if (!targetUnit.detectedBy.some(d => d.unitId === sensorUnit.instanceId)) {
+                                targetUnit.detectedBy.push({ unitId: sensorUnit.instanceId, classification });
+                            }
+                            const el = targetUnit.marker.getElement();
+                            if (el) el.classList.add('tracked-effect');
+                        } else {
+                            detEntry.line.setLatLngs([sensorUnit.marker.getLatLng(), targetUnit.marker.getLatLng()]);
+                        }
+                    }
+                });
+
+                sensorUnit.detectedTargets = sensorUnit.detectedTargets.filter(det => {
+                    if (!currentDetections.has(det.unitId)) {
+                        det.line.remove();
+                        const target = det.target;
+                        if (target.detectedBy) {
+                            target.detectedBy = target.detectedBy.filter(d => d.unitId !== sensorUnit.instanceId);
+                            if (target.detectedBy.length === 0) {
+                                const el = target.marker.getElement();
+                                if (el) el.classList.remove('tracked-effect');
+                            }
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+
+                const ringsChanged = sensorRings.some((r, i) => r.isDetecting !== prevRingStates[i]);
+                if (ringsChanged) {
+                    updateUnitRanges(sensorUnit);
                 }
             });
         }
@@ -1083,6 +1204,7 @@
                     }
                 }
             }
+            updateDetections();
             requestAnimationFrame(gameLoop);
         }
 
