@@ -1138,17 +1138,19 @@
 
             sensors.forEach(sensor => {
                 const sensorPos = sensor.marker.getLatLng();
-                (sensor.effectiveRangeRings || []).forEach(ring => {
-                    if (ring.type !== 'sensor') return;
-                    const classification = getRingClassification(ring.name);
-                    activeMapUnits.forEach(target => {
-                        if (target.unitData.force === sensor.unitData.force) return;
-                        const distance = sensorPos.distanceTo(target.marker.getLatLng());
-                        if (distance <= ring.rangeNm * NM_TO_METERS) {
-                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
-                            target.detectedBy.push({ unitId: sensor.unitId, classification });
-                        }
-                    });
+                const sensorRings = (sensor.effectiveRangeRings || [])
+                    .filter(ring => ring.type === 'sensor')
+                    .sort((a, b) => a.rangeNm - b.rangeNm);
+
+                activeMapUnits.forEach(target => {
+                    if (target.unitData.force === sensor.unitData.force) return;
+                    const distance = sensorPos.distanceTo(target.marker.getLatLng());
+                    const ring = sensorRings.find(r => distance <= r.rangeNm * NM_TO_METERS);
+                    if (ring) {
+                        const classification = getRingClassification(ring.name);
+                        sensor.detectedTargets.push({ unitId: target.unitId, classification });
+                        target.detectedBy.push({ unitId: sensor.unitId, classification });
+                    }
                 });
             });
 
