@@ -195,7 +195,13 @@
                     <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
                 </div>
             </div>
-            
+
+            <!-- NEW: Detection Panel -->
+            <div id="detection-panel" class="absolute top-4 right-4 z-[1000] bg-white/90 p-2 rounded-lg shadow-lg w-72 max-h-60 overflow-y-auto">
+                <h3 class="text-base font-bold mb-1">Detections</h3>
+                <div id="detection-panel-content" class="space-y-1 text-sm"></div>
+            </div>
+
             <!-- NEW: Targeting Control Panel -->
             <div id="targeting-panel" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-full max-w-4xl bg-gray-800/90 text-white p-4 rounded-t-lg shadow-2xl z-[1000]">
                 <div id="targeting-panel-content" class="text-center"></div>
@@ -261,6 +267,7 @@
         var activeInfoPopup = null;
         var rangeRingsVisible = true;
         var labelingMode = false;
+        var activeDetections = new Map();
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
@@ -882,6 +889,67 @@
             panelContent.appendChild(weaponsList);
         }
 
+        function updateDetectionPanel() {
+            const container = document.getElementById('detection-panel-content');
+            container.innerHTML = '';
+            if (activeDetections.size === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">No detections.</p>';
+                return;
+            }
+            activeDetections.forEach(({ detector, target }) => {
+                const entry = document.createElement('div');
+                entry.className = 'detection-entry flex items-center justify-between gap-1 p-1 border-b last:border-b-0 text-sm';
+
+                const detectorSpan = document.createElement('span');
+                detectorSpan.className = `cursor-pointer ${detector.unitData.force === 'red' ? 'text-red-600' : 'text-blue-600'}`;
+                detectorSpan.textContent = detector.unitData.name;
+                detectorSpan.onclick = () => map.flyTo(detector.marker.getLatLng(), 7);
+
+                const arrow = document.createElement('span');
+                arrow.textContent = '➜';
+
+                const targetSpan = document.createElement('span');
+                targetSpan.className = `cursor-pointer ${target.unitData.force === 'red' ? 'text-red-600' : 'text-blue-600'}`;
+                const category = target.unitData.category ? target.unitData.category.charAt(0).toUpperCase() + target.unitData.category.slice(1) : '';
+                targetSpan.textContent = `${target.unitData.name} (${category})`;
+                targetSpan.onclick = () => map.flyTo(target.marker.getLatLng(), 7);
+
+                entry.appendChild(detectorSpan);
+                entry.appendChild(arrow);
+                entry.appendChild(targetSpan);
+                container.appendChild(entry);
+            });
+        }
+
+        function recalcDetections() {
+            const newDetections = new Map();
+            activeMapUnits.forEach((detector, detectorId) => {
+                const sensorRings = (detector.effectiveRangeRings || []).filter(r => r.type === 'sensor');
+                if (sensorRings.length === 0) return;
+                const maxRangeNm = Math.max(...sensorRings.map(r => r.rangeNm));
+                const sensorRangeMeters = maxRangeNm * NM_TO_METERS;
+
+                activeMapUnits.forEach((target, targetId) => {
+                    if (detectorId === targetId) return;
+                    if (detector.unitData.force === target.unitData.force) return;
+                    const distance = detector.marker.getLatLng().distanceTo(target.marker.getLatLng());
+                    if (distance <= sensorRangeMeters) {
+                        newDetections.set(`${detectorId}-${targetId}`, { detector, target });
+                    }
+                });
+            });
+
+            let changed = newDetections.size !== activeDetections.size;
+            if (!changed) {
+                for (const key of newDetections.keys()) {
+                    if (!activeDetections.has(key)) { changed = true; break; }
+                }
+            }
+
+            activeDetections = newDetections;
+            if (changed) updateDetectionPanel();
+        }
+
         function activateMoveMode(unitInstanceId) {
             setAction('move');
             const unit = activeMapUnits.get(unitInstanceId);
@@ -1083,6 +1151,7 @@
                     }
                 }
             }
+            recalcDetections();
             requestAnimationFrame(gameLoop);
         }
 
@@ -1339,6 +1408,8 @@
             // --- STARTUP ---
             populateMenu();
             setupInitialScene();
+            recalcDetections();
+            updateDetectionPanel();
             requestAnimationFrame(gameLoop);
         }
 
