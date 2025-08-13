@@ -1064,6 +1064,44 @@
             });
         }
 
+        function updateDetections() {
+            activeMapUnits.forEach(unit => {
+                unit.detectedTargets = [];
+                unit.detectedBy = [];
+            });
+
+            const sensors = Array.from(activeMapUnits.values()).filter(u =>
+                (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
+            );
+
+            sensors.forEach(sensor => {
+                const sensorPos = sensor.marker.getLatLng();
+                (sensor.effectiveRangeRings || []).forEach(ring => {
+                    if (ring.type !== 'sensor') return;
+                    const classification = getRingClassification(ring.name);
+                    activeMapUnits.forEach(targetUnit => {
+                        if (targetUnit.unitData.force === sensor.unitData.force) return;
+                        const distance = sensorPos.distanceTo(targetUnit.marker.getLatLng());
+                        if (distance <= ring.rangeNm * NM_TO_METERS) {
+                            const detEntry = sensor.detectedTargets.find(dt => dt.unitId === targetUnit.unitId);
+                            const detectedRing = ring;
+                            if (detEntry) {
+                                const newClass = getRingClassification(detectedRing.name);
+                                if (newClass !== detEntry.classification) {
+                                    detEntry.classification = newClass;
+                                    const dbEntry = targetUnit.detectedBy.find(db => db.unitId === sensor.unitId);
+                                    if (dbEntry) dbEntry.classification = newClass;
+                                }
+                            } else {
+                                sensor.detectedTargets.push({ unitId: targetUnit.unitId, classification });
+                                targetUnit.detectedBy.push({ unitId: sensor.unitId, classification });
+                            }
+                        }
+                    });
+                });
+            });
+        }
+
         function gameLoop(currentTime) {
             const timeDelta = (currentTime - lastFrameTime) / 1000;
             lastFrameTime = currentTime;
@@ -1126,31 +1164,7 @@
                 }
             }
 
-            // --- SENSOR DETECTION ---
-            activeMapUnits.forEach(unit => {
-                unit.detectedTargets = [];
-                unit.detectedBy = [];
-            });
-
-            const sensors = Array.from(activeMapUnits.values()).filter(u =>
-                (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
-            );
-
-            sensors.forEach(sensor => {
-                const sensorPos = sensor.marker.getLatLng();
-                (sensor.effectiveRangeRings || []).forEach(ring => {
-                    if (ring.type !== 'sensor') return;
-                    const classification = getRingClassification(ring.name);
-                    activeMapUnits.forEach(target => {
-                        if (target.unitData.force === sensor.unitData.force) return;
-                        const distance = sensorPos.distanceTo(target.marker.getLatLng());
-                        if (distance <= ring.rangeNm * NM_TO_METERS) {
-                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
-                            target.detectedBy.push({ unitId: sensor.unitId, classification });
-                        }
-                    });
-                });
-            });
+            updateDetections();
 
             requestAnimationFrame(gameLoop);
         }
