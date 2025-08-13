@@ -270,6 +270,13 @@
             weapon: { color: '#ef4444', weight: 2, dashArray: null, fillOpacity: 0.1 } // Red colour
         };
 
+        function getRingClassification(name) {
+            const match = name.match(/\(([^)]+)\)/);
+            const classification = match ? match[1] : name;
+            const mapping = { 'Lrg AC': 'Large AC' };
+            return mapping[classification] || classification;
+        }
+
         // --- UNIT DATA LIBRARY ---
         let unitLibrary = {
             // --- Red Force ---
@@ -1083,6 +1090,33 @@
                     }
                 }
             }
+
+            // --- SENSOR DETECTION ---
+            activeMapUnits.forEach(unit => {
+                unit.detectedTargets = [];
+                unit.detectedBy = [];
+            });
+
+            const sensors = Array.from(activeMapUnits.values()).filter(u =>
+                (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
+            );
+
+            sensors.forEach(sensor => {
+                const sensorPos = sensor.marker.getLatLng();
+                (sensor.effectiveRangeRings || []).forEach(ring => {
+                    if (ring.type !== 'sensor') return;
+                    const classification = getRingClassification(ring.name);
+                    activeMapUnits.forEach(target => {
+                        if (target.unitData.force === sensor.unitData.force) return;
+                        const distance = sensorPos.distanceTo(target.marker.getLatLng());
+                        if (distance <= ring.rangeNm * NM_TO_METERS) {
+                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
+                            target.detectedBy.push({ unitId: sensor.unitId, classification });
+                        }
+                    });
+                });
+            });
+
             requestAnimationFrame(gameLoop);
         }
 
