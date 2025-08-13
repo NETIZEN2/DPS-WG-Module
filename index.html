@@ -330,11 +330,19 @@
                     { type: 'weapon', rangeNm: 350, name: 'Weapon Range' }
                 ]
             },
-            
+            'space-isr-red': {
+                name: '176th Collection and Dissemination Bureau',
+                shortName: '176th CDB',
+                force: 'red',
+                category: 'space',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/8868/8868507.png',
+                rangeRings: []
+            },
+
             // --- Blue Force ---
-            'blue-hq': { 
-                name: 'Bunnings Shed Joint HQ', 
-                shortName: 'Blue HQ', 
+            'blue-hq': {
+                name: 'Bunnings Shed Joint HQ',
+                shortName: 'Blue HQ',
                 force: 'blue', 
                 category: 'land', 
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/208/208379.png', 
@@ -1088,8 +1096,8 @@
             if (!menu) return;
             menu.innerHTML = '';
             const forces = {
-                red: { name: 'Red Force', color: 'red-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [] } },
-                blue: { name: 'Blue Force', color: 'blue-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [] } }
+                red: { name: 'Red Force', color: 'red-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [], space: [] } },
+                blue: { name: 'Blue Force', color: 'blue-600', categories: { weapons: [], land: [], air: [], ordnance: [], maritime: [], space: [] } }
             };
             for (const [unitId, unit] of Object.entries(unitLibrary)) {
                 const category = unit.platform === 'aircraft' ? 'ordnance' : unit.category;
@@ -1102,7 +1110,7 @@
                 forceElement.className = 'group';
                 forceElement.open = true;
                 let forceHtml = `<summary class="flex justify-between items-center font-semibold cursor-pointer text-lg text-${force.color} p-2 rounded-md bg-gray-50 hover:bg-gray-100">${force.name}<svg class="w-5 h-5 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></summary><div class="pl-2 pt-2 space-y-3">`;
-                const categoryNames = { weapons: 'Weapons Platforms', land: 'Land Force', air: 'Air Force', maritime: 'Maritime Force', ordnance: 'Ordnance' };
+                const categoryNames = { weapons: 'Weapons Platforms', land: 'Land Force', air: 'Air Force', maritime: 'Maritime Force', space: 'Space Force', ordnance: 'Ordnance' };
                 for (const [catKey, catName] of Object.entries(categoryNames)) {
                     const units = force.categories[catKey];
                     if (units?.length > 0) {
@@ -1357,6 +1365,7 @@
                             <option value="land">Land</option>
                             <option value="air">Air</option>
                             <option value="maritime">Maritime</option>
+                            <option value="space">Space</option>
                         </select>
                     </div>
                     <div id="hardpoints-field" class="hidden">
