@@ -207,6 +207,10 @@
                     <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
                     <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
                 </div>
+                <div class="flex space-x-2">
+                    <button id="undo-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-500 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">Undo</button>
+                    <button id="redo-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-500 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">Redo</button>
+                </div>
             </div>
 
             <!-- NEW: Targeting Control Panel -->
@@ -277,6 +281,43 @@
         let activeInfoPopup = null;
         let rangeRingsVisible = true;
         const labelingMode = false;
+
+        // --- HISTORY MANAGEMENT ---
+        const historyStack = [];
+        let historyIndex = -1;
+
+        function pushState() {
+            const snapshot = Array.from(activeMapUnits.values()).map(unit => ({
+                latlng: unit.marker.getLatLng(),
+                unitId: unit.unitId,
+                instanceId: unit.instanceId,
+                ammo: unit.ammo,
+                mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
+                destination: unit.destination ? { lat: unit.destination.lat, lng: unit.destination.lng } : null
+            }));
+            historyStack.splice(historyIndex + 1);
+            historyStack.push(snapshot);
+            historyIndex = historyStack.length - 1;
+        }
+
+        function loadState(snapshot) {
+            clearMap(false);
+            snapshot.forEach(unit => {
+                addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination, false);
+            });
+        }
+
+        function undo() {
+            if (historyIndex <= 0) return;
+            historyIndex--;
+            loadState(historyStack[historyIndex]);
+        }
+
+        function redo() {
+            if (historyIndex >= historyStack.length - 1) return;
+            historyIndex++;
+            loadState(historyStack[historyIndex]);
+        }
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
@@ -548,7 +589,7 @@
         }
 
         // --- CORE UNIT MANAGEMENT ---
-        function addCapability(latlng, unitId, instanceId = null, ammo = null, mountedWeapons = null, destination = null) {
+        function addCapability(latlng, unitId, instanceId = null, ammo = null, mountedWeapons = null, destination = null, recordHistory = true) {
             const unitData = unitLibrary[unitId];
             if (!unitData) return;
 
@@ -611,10 +652,11 @@
             }
 
             bindUnitEvents(unitObject);
+            if (recordHistory) pushState();
             return unitObject;
         }
 
-        function deleteUnit(instanceId) {
+        function deleteUnit(instanceId, recordHistory = true) {
             const unitToRemove = activeMapUnits.get(instanceId);
             if (unitToRemove) {
                 map.closePopup();
@@ -624,6 +666,7 @@
                 if (unitToRemove.movePathLine) unitToRemove.movePathLine.remove();
                 unitToRemove.pendingTargets?.forEach(t => t.line.remove());
                 activeMapUnits.delete(instanceId);
+                if (recordHistory) pushState();
             }
         }
 
@@ -659,6 +702,7 @@
                 if (this.getElement().matches(':hover')) {
                     this.fire('click', { latlng: this.getLatLng() });
                 }
+                pushState();
             });
 
             marker.on('click', (e) => {
@@ -1339,11 +1383,12 @@
         }
 
         // --- SCENE & UI MANAGEMENT ---
-        function clearMap() {
-            activeMapUnits.forEach((_, id) => deleteUnit(id));
+        function clearMap(recordHistory = true) {
+            activeMapUnits.forEach((_, id) => deleteUnit(id, false));
             activeMapUnits.clear();
             nextUnitInstanceId = 0;
             setAction(null);
+            if (recordHistory) pushState();
         }
 
         function populateMenu() {
@@ -1416,6 +1461,8 @@
             const resetBtn = document.getElementById('reset-btn');
             const clearBtn = document.getElementById('clear-btn');
             const toggleRingsBtn = document.getElementById('toggle-rings-btn');
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
             const mapDropEl = document.getElementById('map');
             const addEntityBtn = document.getElementById('add-entity-btn');
             const entityModal = document.getElementById('entity-modal');
@@ -1431,6 +1478,8 @@
                 setAction(isAlreadyTargeting ? null : 'targeting');
             });
             launchBtn.addEventListener('click', launchAllTargeted);
+            undoBtn.addEventListener('click', undo);
+            redoBtn.addEventListener('click', redo);
 
             toggleRingsBtn.addEventListener('click', () => {
                 rangeRingsVisible = !rangeRingsVisible;
@@ -1468,8 +1517,8 @@
             });
 
             resetBtn.addEventListener('click', () => {
-                clearMap();
                 if (savedScenario) {
+                    clearMap(false);
                     const maxId = savedScenario.reduce((max, unit) => {
                         let highestId = unit.instanceId;
                         if (unit.mountedWeapons) {
@@ -1481,8 +1530,9 @@
                     nextUnitInstanceId = maxId + 1;
 
                     savedScenario.forEach(unit => {
-                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination, false);
                     });
+                    pushState();
                 } else {
                     setupInitialScene();
                 }
@@ -1515,7 +1565,7 @@
                             moved = true;
                         }
                     });
-                    if (moved) setAction(null);
+                    if (moved) { setAction(null); pushState(); }
                 } else {
                     if (activeInfoPopup) {
                         map.closePopup(activeInfoPopup);
