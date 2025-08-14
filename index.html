@@ -60,6 +60,12 @@
             50% { stroke-opacity: 0.5; stroke-width: 4; }
             100% { stroke-opacity: 1; stroke-width: 2; }
         }
+        .detected-target-ring { animation: detectedPulse 1.5s infinite; }
+        @keyframes detectedPulse {
+            0% { stroke-opacity: 0.8; stroke-width: 2; }
+            50% { stroke-opacity: 0.2; stroke-width: 6; }
+            100% { stroke-opacity: 0.8; stroke-width: 2; }
+        }
         /* Jammed unit effect */
         .jammed-effect {
             animation: flicker 0.3s infinite;
@@ -1224,6 +1230,37 @@
                         });
                 });
             });
+            sensors.forEach(sensor => {
+                const el = sensor.marker.getElement();
+                if (!el) return;
+                if (sensor.detectedTargets && sensor.detectedTargets.length > 0) {
+                    el.classList.add('ring-2', 'ring-green-400');
+                } else {
+                    el.classList.remove('ring-2', 'ring-green-400');
+                }
+            });
+
+            activeMapUnits.forEach(unit => {
+                if (unit.detectedBy && unit.detectedBy.length > 0) {
+                    const latlng = unit.marker.getLatLng();
+                    if (!unit.detectionHalo) {
+                        unit.detectionHalo = L.circleMarker(latlng, {
+                            radius: 20,
+                            color: '#ef4444',
+                            weight: 2,
+                            fill: false,
+                            className: 'detected-target-ring',
+                            interactive: false,
+                        }).addTo(map);
+                    } else {
+                        unit.detectionHalo.setLatLng(latlng);
+                    }
+                } else if (unit.detectionHalo) {
+                    map.removeLayer(unit.detectionHalo);
+                    unit.detectionHalo = null;
+                }
+            });
+
             refreshDetectionPanel();
         }
 
