@@ -47,8 +47,16 @@
         .draggable-unit:active { cursor: grabbing; }
         /* Style for mountable ordnance in the menu */
         .mountable-ordnance { background-color: #eef2ff; }
+        .distance-label {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
         /* Cursors for different modes */
         .targeting-cursor { cursor: crosshair !important; }
+        .measure-cursor { cursor: crosshair !important; }
         .move-cursor { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>') 16 16, auto !important; }
         .targeting-cursor .leaflet-marker-icon.invalid-target-hover,
         .move-cursor .leaflet-marker-icon { cursor: not-allowed !important; }
@@ -202,6 +210,9 @@
                     <button id="targeting-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
                     <button id="launch-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
                 </div>
+                <div class="flex">
+                    <button id="measure-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">Measure</button>
+                </div>
                 <div class="flex space-x-2">
                     <button id="save-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Scene</button>
                     <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
@@ -282,6 +293,10 @@
         let activeInfoPopup = null;
         let rangeRingsVisible = true;
         const labelingMode = false;
+        let measuring = false;
+        let measureStart = null;
+        let measureLine = null;
+        let measureLabel = null;
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
@@ -1427,6 +1442,8 @@
             const mapDropEl = document.getElementById('map');
             const addEntityBtn = document.getElementById('add-entity-btn');
             const entityModal = document.getElementById('entity-modal');
+            const measureBtn = document.getElementById('measure-btn');
+            const mapContainer = document.getElementById('map-container');
             
             addEntityBtn.addEventListener('click', () => {
                 document.getElementById('modal-step-1').classList.remove('hidden');
@@ -1439,6 +1456,24 @@
                 setAction(isAlreadyTargeting ? null : 'targeting');
             });
             launchBtn.addEventListener('click', launchAllTargeted);
+            measureBtn.addEventListener('click', () => {
+                if (measuring) {
+                    measuring = false;
+                    measureStart = null;
+                    measureBtn.textContent = 'Measure';
+                    measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                    measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                    mapContainer.classList.remove('measure-cursor');
+                } else {
+                    setAction(null);
+                    measuring = true;
+                    measureStart = null;
+                    measureBtn.textContent = 'Cancel Measure';
+                    measureBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+                    measureBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+                    mapContainer.classList.add('measure-cursor');
+                }
+            });
 
             toggleRingsBtn.addEventListener('click', () => {
                 rangeRingsVisible = !rangeRingsVisible;
@@ -1559,6 +1594,34 @@
             });
 
             map.on('click', e => {
+                if (measuring) {
+                    if (!measureStart) {
+                        measureStart = e.latlng;
+                    } else {
+                        if (measureLine) measureLine.remove();
+                        if (measureLabel) measureLabel.remove();
+                        const end = e.latlng;
+                        measureLine = L.polyline([measureStart, end], { color: 'yellow', weight: 2, dashArray: '4,4' }).addTo(map);
+                        const distance = map.distance(measureStart, end);
+                        const mid = L.latLng((measureStart.lat + end.lat) / 2, (measureStart.lng + end.lng) / 2);
+                        measureLabel = L.marker(mid, {
+                            interactive: false,
+                            icon: L.divIcon({ className: 'distance-label', html: `${(distance / 1000).toFixed(2)} km` })
+                        }).addTo(map);
+                        setTimeout(() => {
+                            if (measureLine) { measureLine.remove(); measureLine = null; }
+                            if (measureLabel) { measureLabel.remove(); measureLabel = null; }
+                        }, 5000);
+                        measuring = false;
+                        measureStart = null;
+                        measureBtn.textContent = 'Measure';
+                        measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                        measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                        mapContainer.classList.remove('measure-cursor');
+                        setAction(null);
+                    }
+                    return;
+                }
                 if (activeAction.type === 'targeting') {
                     setTarget(null, e.latlng);
                 } else if (activeAction.type === 'move') {
