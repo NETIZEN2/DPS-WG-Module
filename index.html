@@ -682,8 +682,12 @@
             });
 
             marker.on('click', (e) => {
+                if (measuring) {
+                    map.fire('click', { latlng: marker.getLatLng() });
+                    return;
+                }
                 L.DomEvent.stopPropagation(e);
-                
+
                 if (activeAction.type === 'targeting') {
                     if (activeAction.armedWeapon) {
                         setTarget(unitObject);
