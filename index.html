@@ -19,6 +19,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
+        :root {
+            --color-map-bg: #7fb3d5;
+            --color-unit-label: #1f2937;
+            --color-panel-bg: rgba(31, 41, 55, 0.95);
+            --color-panel-text: #ffffff;
+        }
         html, body {
             height: 100%;
             margin: 0;
@@ -31,7 +37,7 @@
         #map {
             height: 100%;
             width: 100%;
-            background-color: #a2d3f5; /* A light blue to represent the sea/sky */
+            background-color: var(--color-map-bg); /* A light blue to represent the sea/sky */
         }
         /* Styling for the unit name labels */
         .unit-label {
@@ -39,7 +45,7 @@
             font-weight: 600;
             text-align: center;
             white-space: nowrap;
-            color: #1f2937; /* gray-800 */
+            color: var(--color-unit-label); /* gray-800 */
             text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white;
         }
         /* Style for draggable items in the menu */
@@ -99,6 +105,11 @@
         /* NEW: Targeting Panel styles */
         #targeting-panel {
             transition: transform 0.3s ease-in-out;
+        }
+
+        #targeting-panel, #detection-panel {
+            background-color: var(--color-panel-bg);
+            color: var(--color-panel-text);
         }
 
         /* NEW: Legend Styles */
@@ -196,26 +207,26 @@
             <!-- Simulation Controls -->
             <div class="absolute top-4 left-4 z-[1000] bg-white p-2 rounded-lg shadow-lg flex flex-col space-y-2">
                 <div class="flex">
-                    <button id="toggle-rings-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Hide Range Rings</button>
+                    <button id="toggle-rings-btn" aria-label="Toggle range rings" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Hide Range Rings</button>
                 </div>
                 <div class="flex space-x-2">
-                    <button id="targeting-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
-                    <button id="launch-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
+                    <button id="targeting-btn" aria-label="Toggle targeting mode" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
+                    <button id="launch-btn" aria-label="Launch missiles" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
                 </div>
                 <div class="flex space-x-2">
-                    <button id="save-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Scene</button>
-                    <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
-                    <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
+                    <button id="save-btn" aria-label="Save scene" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Scene</button>
+                    <button id="reset-btn" aria-label="Reset scene" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
+                    <button id="clear-btn" aria-label="Clear all" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
                 </div>
             </div>
 
             <!-- NEW: Targeting Control Panel -->
-            <div id="targeting-panel" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-full max-w-4xl bg-gray-800/90 text-white p-4 rounded-t-lg shadow-2xl z-[1000]">
+            <div id="targeting-panel" role="region" aria-label="Targeting controls" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-full max-w-4xl bg-gray-800/90 text-white p-4 rounded-t-lg shadow-2xl z-[1000]">
                 <div id="targeting-panel-content" class="text-center"></div>
             </div>
 
             <!-- Detection Results Panel -->
-            <div id="detection-panel" class="absolute top-4 right-4 z-[1000] w-64 bg-gray-800/90 text-white p-2 rounded shadow-lg max-h-60 overflow-y-auto space-y-1"></div>
+            <div id="detection-panel" role="region" aria-label="Detection results" class="absolute top-4 right-4 z-[1000] w-64 bg-gray-800/90 text-white p-2 rounded shadow-lg max-h-60 overflow-y-auto space-y-1"></div>
         </div>
 
         <!-- Right Hand Menu -->
@@ -226,7 +237,7 @@
             </div>
             <!-- NEW: Add Entity Button -->
             <div class="mt-4">
-                <button id="add-entity-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition-colors">
+                <button id="add-entity-btn" aria-label="Create new entity" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition-colors">
                     Create New Entity
                 </button>
             </div>
@@ -234,16 +245,16 @@
     </div>
 
     <!-- NEW: Entity Creation Modal -->
-    <div id="entity-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden">
+    <div id="entity-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden" role="dialog" aria-modal="true" aria-labelledby="entity-modal-title">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <!-- Step 1: Category Selection -->
             <div id="modal-step-1">
-                <h2 class="text-2xl font-bold mb-4">Select Entity Type</h2>
+                <h2 id="entity-modal-title" class="text-2xl font-bold mb-4">Select Entity Type</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button data-action="select-entity-type" data-type="platform" class="entity-type-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg">Platform</button>
-                    <button data-action="select-entity-type" data-type="weapon" class="entity-type-btn bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg">Weapon System</button>
+                    <button data-action="select-entity-type" data-type="platform" class="entity-type-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg" aria-label="Create platform">Platform</button>
+                    <button data-action="select-entity-type" data-type="weapon" class="entity-type-btn bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg" aria-label="Create weapon system">Weapon System</button>
                 </div>
-                 <button type="button" data-action="close-create-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Cancel</button>
+                 <button type="button" data-action="close-create-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded" aria-label="Cancel creation">Cancel</button>
             </div>
             <!-- Step 2: Form -->
             <div id="modal-step-2" class="hidden">
@@ -254,7 +265,7 @@
     </div>
     
     <!-- NEW: Library Info Modal -->
-    <div id="library-info-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden">
+    <div id="library-info-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center hidden" role="dialog" aria-modal="true" aria-labelledby="library-info-title">
         <div id="library-info-content" class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
             <!-- Content will be injected here -->
         </div>
@@ -277,6 +288,8 @@
         let activeInfoPopup = null;
         let rangeRingsVisible = true;
         const labelingMode = false;
+        let unitNavItems = [];
+        let unitNavIndex = 0;
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
@@ -1374,11 +1387,11 @@
                             const isOrdnance = unit.platform === 'aircraft' || unit.platform === 'ship';
                             const divClass = `draggable-unit flex items-center p-2 rounded-md hover:bg-gray-200 transition-colors ${isOrdnance ? 'mountable-ordnance' : ''}`;
                             forceHtml += `<div class="flex justify-between items-center">
-                                                <div class="${divClass}" draggable="true" data-unit-id="${unit.id}">
+                                                <div class="${divClass}" draggable="true" data-unit-id="${unit.id}" role="button" tabindex="0" aria-label="Add ${unit.name}">
                                                     <img src="${unit.iconUrl}" class="w-6 h-6 mr-3">
                                                     <span class="text-sm text-gray-700">${unit.name}</span>
                                                 </div>
-                                                <button data-action="show-info" data-unit-id="${unit.id}" class="info-btn text-blue-500 hover:text-blue-700">&#9432;</button>
+                                                <button data-action="show-info" data-unit-id="${unit.id}" class="info-btn text-blue-500 hover:text-blue-700" aria-label="More information about ${unit.name}">&#9432;</button>
                                               </div>`;
                         });
                         forceHtml += `</div>`;
@@ -1394,7 +1407,40 @@
                     e.dataTransfer.effectAllowed = 'copy';
                 });
             });
+            setupKeyboardNavigation();
         }
+
+
+        function setupKeyboardNavigation() {
+            unitNavItems = Array.from(document.querySelectorAll('#unit-menu .draggable-unit'));
+            unitNavIndex = 0;
+            unitNavItems.forEach(el => {
+                el.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') {
+                        const unitId = el.dataset.unitId;
+                        const center = map.getCenter();
+                        addCapability(center, unitId);
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowDown') {
+                if (unitNavItems.length === 0) return;
+                e.preventDefault();
+                unitNavIndex = (unitNavIndex + 1) % unitNavItems.length;
+                unitNavItems[unitNavIndex].focus();
+            } else if (e.key === 'ArrowUp') {
+                if (unitNavItems.length === 0) return;
+                e.preventDefault();
+                unitNavIndex = (unitNavIndex - 1 + unitNavItems.length) % unitNavItems.length;
+                unitNavItems[unitNavIndex].focus();
+            } else if (e.key === 'Escape') {
+                const openModal = document.querySelector('.fixed.inset-0:not(.hidden)');
+                if (openModal) openModal.classList.add('hidden');
+            }
+        });
 
 
         function setupInitialScene() {
@@ -1646,8 +1692,8 @@
 
             let buttons = `
                 <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button" id="back-to-step-1" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Back</button>
-                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Save Entity</button>
+                    <button type="button" id="back-to-step-1" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded" aria-label="Go back">Back</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded" aria-label="Save entity">Save Entity</button>
                 </div>
             `;
 
@@ -1730,7 +1776,7 @@
 
             if (!unitData) return;
 
-            let html = `<h3 class="text-xl font-bold mb-4">${unitData.name}</h3>`;
+            let html = `<h3 id="library-info-title" class="text-xl font-bold mb-4">${unitData.name}</h3>`;
             html += `<p><b>Force:</b> <span class="capitalize ${unitData.force === 'red' ? 'text-red-600' : 'text-blue-600'}">${unitData.force}</span></p>`;
             html += `<p><b>Category:</b> <span class="capitalize">${unitData.category}</span></p>`;
             
@@ -1763,7 +1809,7 @@
                 html += `</ul>`;
             }
 
-            html += `<button data-action="close-info-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Close</button>`;
+            html += `<button data-action="close-info-modal" class="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded" aria-label="Close information modal">Close</button>`;
 
             content.innerHTML = html;
             modal.classList.remove('hidden');
