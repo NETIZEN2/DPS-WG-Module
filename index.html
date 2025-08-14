@@ -1172,8 +1172,8 @@
                     const distance = sensorPos.distanceTo(target.marker.getLatLng());
                     const ring = sensorRings.find(r => distance <= r.rangeNm * NM_TO_METERS);
 
-                    const sensorEntryIndex = sensor.detectedTargets.findIndex(dt => dt.unitId === target.unitId);
-                    const targetEntryIndex = target.detectedBy.findIndex(db => db.unitId === sensor.unitId);
+                    const sensorEntryIndex = sensor.detectedTargets.findIndex(dt => dt.instanceId === target.instanceId);
+                    const targetEntryIndex = target.detectedBy.findIndex(db => db.instanceId === sensor.instanceId);
 
                     if (ring) {
                         const classification = getRingClassification(ring.name);
@@ -1183,8 +1183,8 @@
                                 target.detectedBy[targetEntryIndex].classification = classification;
                             }
                         } else {
-                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
-                            target.detectedBy.push({ unitId: sensor.unitId, classification });
+                            sensor.detectedTargets.push({ instanceId: target.instanceId, classification });
+                            target.detectedBy.push({ instanceId: sensor.instanceId, classification });
                         }
                     } else {
                         if (sensorEntryIndex !== -1) {
@@ -1203,20 +1203,20 @@
 
                 const aggregated = {};
                 target.detectedBy.forEach(entry => {
-                    const existing = aggregated[entry.unitId];
+                    const existing = aggregated[entry.instanceId];
                     if (!existing || (priority[entry.classification] || 0) > (priority[existing.classification] || 0)) {
-                        aggregated[entry.unitId] = { unitId: entry.unitId, classification: entry.classification };
+                        aggregated[entry.instanceId] = { instanceId: entry.instanceId, classification: entry.classification };
                     }
                 });
                 target.detectedBy = Object.values(aggregated);
 
-                Object.values(aggregated).forEach(({ unitId: sensorUnitId, classification }) => {
+                Object.values(aggregated).forEach(({ instanceId: sensorInstanceId, classification }) => {
                     sensors
-                        .filter(s => s.unitId === sensorUnitId)
+                        .filter(s => s.instanceId === sensorInstanceId)
                         .forEach(sensor => {
                             sensor.detectedTargets = sensor.detectedTargets || [];
-                            sensor.detectedTargets = sensor.detectedTargets.filter(dt => dt.unitId !== target.unitId);
-                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
+                            sensor.detectedTargets = sensor.detectedTargets.filter(dt => dt.instanceId !== target.instanceId);
+                            sensor.detectedTargets.push({ instanceId: target.instanceId, classification });
                         });
                 });
             });
@@ -1252,14 +1252,14 @@
 
                 const list = document.createElement('ul');
                 sensor.detectedTargets.forEach(dt => {
-                    const targetUnit = Array.from(activeMapUnits.values()).find(u => u.unitId === dt.unitId);
+                    const targetUnit = activeMapUnits.get(dt.instanceId);
                     if (!targetUnit) return;
                     const li = document.createElement('li');
                     const targetName = document.createElement('span');
                     targetName.textContent = targetUnit.unitData.name;
                     targetName.className = 'cursor-pointer underline text-red-400';
-                    targetName.dataset.targetId = targetUnit.instanceId;
-                    targetName.addEventListener('click', () => flyToUnit(targetUnit.instanceId));
+                    targetName.dataset.targetId = dt.instanceId;
+                    targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
                     li.appendChild(targetName);
                     li.appendChild(document.createTextNode(` - ${dt.classification}`));
                     list.appendChild(li);
