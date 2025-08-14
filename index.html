@@ -1464,6 +1464,12 @@
                     measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
                     measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
                     mapContainer.classList.remove('measure-cursor');
+                    map.dragging.enable();
+                    map.doubleClickZoom.enable();
+                    map.scrollWheelZoom.enable();
+                    map.boxZoom.enable();
+                    map.keyboard.enable();
+                    activeMapUnits.forEach(unit => unit.marker.dragging.enable());
                 } else {
                     setAction(null);
                     measuring = true;
@@ -1472,6 +1478,12 @@
                     measureBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
                     measureBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
                     mapContainer.classList.add('measure-cursor');
+                    map.dragging.disable();
+                    map.doubleClickZoom.disable();
+                    map.scrollWheelZoom.disable();
+                    map.boxZoom.disable();
+                    map.keyboard.disable();
+                    activeMapUnits.forEach(unit => unit.marker.dragging.disable());
                 }
             });
 
@@ -1618,6 +1630,12 @@
                         measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
                         measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
                         mapContainer.classList.remove('measure-cursor');
+                        map.dragging.enable();
+                        map.doubleClickZoom.enable();
+                        map.scrollWheelZoom.enable();
+                        map.boxZoom.enable();
+                        map.keyboard.enable();
+                        activeMapUnits.forEach(unit => unit.marker.dragging.enable());
                         setAction(null);
                     }
                     return;
