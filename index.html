@@ -18,6 +18,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 
+    <!-- Shepherd.js for guided tours -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@8.4.1/dist/css/shepherd.css">
+    <script src="https://cdn.jsdelivr.net/npm/shepherd.js@8.4.1/dist/js/shepherd.min.js"></script>
+
     <style>
         html, body {
             height: 100%;
@@ -186,13 +190,27 @@
                     <button id="toggle-rings-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Hide Range Rings</button>
                 </div>
                 <div class="flex space-x-2">
-                    <button id="targeting-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
-                    <button id="launch-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
+                    <div class="flex items-center space-x-1 flex-1">
+                        <button id="targeting-btn" title="Select units and designate targets" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Targeting Mode</button>
+                        <button id="targeting-help" title="About targeting mode" class="px-2 py-1 text-xs text-gray-600 bg-gray-200 rounded">?</button>
+                    </div>
+                    <div class="flex items-center space-x-1 flex-1">
+                        <button id="launch-btn" title="Launch scheduled weapons" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Launch Missiles</button>
+                        <button id="launch-help" title="About launching weapons" class="px-2 py-1 text-xs text-gray-600 bg-gray-200 rounded">?</button>
+                    </div>
                 </div>
                 <div class="flex space-x-2">
                     <button id="save-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Scene</button>
                     <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
                     <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
+                </div>
+                <div class="flex justify-end">
+                    <div class="relative">
+                        <button id="help-menu-btn" class="px-2 py-1 text-sm text-gray-700 bg-gray-200 rounded">Help</button>
+                        <div id="help-menu" class="absolute right-0 mt-1 w-32 bg-white border rounded shadow-lg hidden">
+                            <button id="replay-tour-btn" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100">Replay Tour</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1715,7 +1733,62 @@
             modal.classList.remove('hidden');
         }
 
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        let tour;
+        function initTour() {
+            tour = new Shepherd.Tour({
+                defaultStepOptions: { scrollTo: false }
+            });
+            tour.addStep({
+                id: 'map-controls',
+                text: 'Use these buttons to manage the map and units.',
+                attachTo: { element: '#toggle-rings-btn', on: 'bottom' },
+                buttons: [{ text: 'Next', action: tour.next }]
+            });
+            tour.addStep({
+                id: 'targeting-step',
+                text: 'Targeting mode lets you select units and assign targets.',
+                attachTo: { element: '#targeting-btn', on: 'bottom' },
+                buttons: [
+                    { text: 'Back', action: tour.back },
+                    { text: 'Next', action: tour.next }
+                ]
+            });
+            tour.addStep({
+                id: 'launch-step',
+                text: 'Launch missiles at designated targets when ready.',
+                attachTo: { element: '#launch-btn', on: 'bottom' },
+                buttons: [
+                    { text: 'Back', action: tour.back },
+                    { text: 'Next', action: tour.next }
+                ]
+            });
+            tour.addStep({
+                id: 'detection-step',
+                text: 'The detection panel lists what your units are observing.',
+                attachTo: { element: '#detection-panel', on: 'left' },
+                buttons: [
+                    { text: 'Back', action: tour.back },
+                    { text: 'Finish', action: tour.complete }
+                ]
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+            initTour();
+            tour.start();
+            document.getElementById('replay-tour-btn').addEventListener('click', () => tour.start());
+            document.getElementById('targeting-help').addEventListener('click', () => tour.show('targeting-step'));
+            document.getElementById('launch-help').addEventListener('click', () => tour.show('launch-step'));
+            const helpMenuBtn = document.getElementById('help-menu-btn');
+            const helpMenu = document.getElementById('help-menu');
+            helpMenuBtn.addEventListener('click', () => helpMenu.classList.toggle('hidden'));
+            document.addEventListener('click', (e) => {
+                if (!helpMenu.contains(e.target) && e.target !== helpMenuBtn) {
+                    helpMenu.classList.add('hidden');
+                }
+            });
+        });
 
     </script>
 </body>
