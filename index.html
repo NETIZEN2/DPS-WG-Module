@@ -268,15 +268,15 @@
 
     <script>
         // --- GLOBAL STATE ---
-        var map = null;
-        var activeAction = { type: null, armedUnit: null, armedWeapon: null, shotsToFire: 0 };
-        var activeMapUnits = new Map();
-        var savedScenario = null;
-        var nextUnitInstanceId = 0;
-        var lastFrameTime = performance.now();
-        var activeInfoPopup = null;
-        var rangeRingsVisible = true;
-        var labelingMode = false;
+        let map = null;
+        const activeAction = { type: null, armedUnit: null, armedWeapon: null, shotsToFire: 0 };
+        const activeMapUnits = new Map();
+        let savedScenario = null;
+        let nextUnitInstanceId = 0;
+        let lastFrameTime = performance.now();
+        let activeInfoPopup = null;
+        let rangeRingsVisible = true;
+        const labelingMode = false;
 
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
