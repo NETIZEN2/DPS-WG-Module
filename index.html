@@ -158,6 +158,16 @@
             text-align: center;
         }
 
+        /* NEW: Polygon label style */
+        .polygon-label {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
         /* NEW: Icon selector styles */
         .icon-selector {
             display: grid;
@@ -298,6 +308,41 @@
         let measureLine = null;
         let measureLabel = null;
         const collapsedSensors = new Set();
+
+        // NEW: Polygon features stored as GeoJSON
+        const polygonFeatures = {
+            type: 'FeatureCollection',
+            features: [
+                {
+                    type: 'Feature',
+                    properties: { name: 'Area Alpha' },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [[[146, -6], [147, -6], [147, -5], [146, -5], [146, -6]]]
+                    }
+                }
+            ]
+        };
+
+        function computeCentroid(coords) {
+            let area = 0, x = 0, y = 0;
+            for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+                const xi = coords[i][0], yi = coords[i][1];
+                const xj = coords[j][0], yj = coords[j][1];
+                const f = xi * yj - xj * yi;
+                area += f;
+                x += (xi + xj) * f;
+                y += (yi + yj) * f;
+            }
+            area /= 2;
+            return [x / (6 * area), y / (6 * area)];
+        }
+
+        polygonFeatures.features.forEach(f => {
+            f.properties.anchor = computeCentroid(f.geometry.coordinates[0]);
+        });
+
+        let polygonLayer = null;
 
         function clearMeasure() {
             if (measureLine) {
@@ -1479,10 +1524,34 @@
         function initializeApp() {
             // Initialize map without default attribution
             map = L.map('map', { attributionControl: false }).setView([-6.3, 146.8], 5);
-            
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+
+            // Add polygon layer and label markers using stored anchor points
+            polygonLayer = L.geoJSON(polygonFeatures, {
+                style: { color: 'purple', weight: 1, fillOpacity: 0.1 },
+                onEachFeature: function(feature, layer) {
+                    const anchor = feature.properties.anchor;
+                    feature.properties.labelMarker = L.marker([anchor[1], anchor[0]], {
+                        interactive: false,
+                        icon: L.divIcon({ className: 'polygon-label', html: feature.properties.name })
+                    }).addTo(map);
+                }
+            }).addTo(map);
+
+            function recenterPolygonLabels() {
+                polygonLayer.eachLayer(function(layer) {
+                    const feature = layer.feature;
+                    const centroid = computeCentroid(feature.geometry.coordinates[0]);
+                    feature.properties.anchor = centroid;
+                    feature.properties.labelMarker.setLatLng([centroid[1], centroid[0]]);
+                });
+            }
+
+            map.on('move', recenterPolygonLabels);
+            map.on('zoom', recenterPolygonLabels);
 
             const targetingBtn = document.getElementById('targeting-btn');
             const launchBtn = document.getElementById('launch-btn');
