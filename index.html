@@ -1619,10 +1619,12 @@
                         const end = e.latlng;
                         measureLine = L.polyline([measureStart, end], { color: 'yellow', weight: 2, dashArray: '4,4' }).addTo(map);
                         const distance = map.distance(measureStart, end);
+                        const distanceKm = distance / 1000;
+                        const distanceNm = distance / 1852;
                         const mid = L.latLng((measureStart.lat + end.lat) / 2, (measureStart.lng + end.lng) / 2);
                         measureLabel = L.marker(mid, {
                             interactive: false,
-                            icon: L.divIcon({ className: 'distance-label', html: `${(distance / 1000).toFixed(2)} km` })
+                            icon: L.divIcon({ className: 'distance-label', html: `${distanceKm.toFixed(2)} km / ${distanceNm.toFixed(2)} nm` })
                         }).addTo(map);
                         setTimeout(() => {
                             if (measureLine) { measureLine.remove(); measureLine = null; }
