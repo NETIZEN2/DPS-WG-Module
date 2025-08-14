@@ -203,6 +203,9 @@
             <div id="targeting-panel" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-full max-w-4xl bg-gray-800/90 text-white p-4 rounded-t-lg shadow-2xl z-[1000]">
                 <div id="targeting-panel-content" class="text-center"></div>
             </div>
+
+            <!-- Detection Results Panel -->
+            <div id="detection-panel" class="absolute top-4 right-4 z-[1000] bg-gray-800/90 text-white p-2 rounded shadow-lg max-h-60 overflow-y-auto"></div>
         </div>
 
         <!-- Right Hand Menu -->
@@ -1216,6 +1219,54 @@
                             sensor.detectedTargets.push({ unitId: target.unitId, classification });
                         });
                 });
+            });
+            refreshDetectionPanel();
+        }
+
+        function flyToUnit(instanceId, zoom = 7) {
+            const unit = activeMapUnits.get(instanceId);
+            if (!unit) return;
+            const latlng = unit.marker.getLatLng();
+            map.flyTo(latlng, zoom);
+            if (unit.marker.openPopup) {
+                unit.marker.openPopup();
+                setTimeout(() => unit.marker.closePopup(), 2000);
+            }
+        }
+
+        function refreshDetectionPanel() {
+            const panel = document.getElementById('detection-panel');
+            if (!panel) return;
+            panel.innerHTML = '';
+
+            activeMapUnits.forEach(sensor => {
+                if (!sensor.detectedTargets || sensor.detectedTargets.length === 0) return;
+
+                const sensorDiv = document.createElement('div');
+                const sensorName = document.createElement('span');
+                sensorName.textContent = sensor.unitData.name;
+                sensorName.className = 'cursor-pointer underline text-blue-400';
+                sensorName.dataset.sensorId = sensor.instanceId;
+                sensorName.addEventListener('click', () => flyToUnit(sensor.instanceId));
+                sensorDiv.appendChild(sensorName);
+
+                const list = document.createElement('ul');
+                sensor.detectedTargets.forEach(dt => {
+                    const targetUnit = Array.from(activeMapUnits.values()).find(u => u.unitId === dt.unitId);
+                    if (!targetUnit) return;
+                    const li = document.createElement('li');
+                    const targetName = document.createElement('span');
+                    targetName.textContent = targetUnit.unitData.name;
+                    targetName.className = 'cursor-pointer underline text-red-400';
+                    targetName.dataset.targetId = targetUnit.instanceId;
+                    targetName.addEventListener('click', () => flyToUnit(targetUnit.instanceId));
+                    li.appendChild(targetName);
+                    li.appendChild(document.createTextNode(` - ${dt.classification}`));
+                    list.appendChild(li);
+                });
+
+                sensorDiv.appendChild(list);
+                panel.appendChild(sensorDiv);
             });
         }
 
