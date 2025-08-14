@@ -171,6 +171,13 @@
         .icon-selector-item.selected {
             border-color: #3b82f6;
         }
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+        .detected { color: #22c55e; }
+        .undetected { color: #ef4444; }
         .bg-grey-100 { background-color: #f3f4f6; } /* Tailwind's gray-100 */
     </style>
 </head>
@@ -1236,29 +1243,42 @@
             if (!panel) return;
             panel.innerHTML = '';
 
-            activeMapUnits.forEach(sensor => {
-                if (!sensor.detectedTargets || sensor.detectedTargets.length === 0) return;
+            const sensors = Array.from(activeMapUnits.values()).filter(u =>
+                (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
+            );
 
+            sensors.forEach(sensor => {
                 const sensorDiv = document.createElement('div');
                 const sensorName = document.createElement('span');
                 sensorName.textContent = sensor.unitData.name;
                 sensorName.className = 'cursor-pointer underline text-blue-400';
-                sensorName.dataset.sensorId = sensor.instanceId;
                 sensorName.addEventListener('click', () => flyToUnit(sensor.instanceId));
                 sensorDiv.appendChild(sensorName);
 
                 const list = document.createElement('ul');
-                sensor.detectedTargets.forEach(dt => {
-                    const targetUnit = activeMapUnits.get(dt.instanceId);
-                    if (!targetUnit) return;
+                activeMapUnits.forEach(target => {
+                    if (target.unitData.force === sensor.unitData.force) return;
+
                     const li = document.createElement('li');
+
+                    const icon = document.createElement('img');
+                    icon.src = target.unitData.iconUrl;
+                    icon.className = 'inline-block w-4 h-4 mr-1 cursor-pointer';
+                    icon.addEventListener('click', () => flyToUnit(target.instanceId));
+                    li.appendChild(icon);
+
                     const targetName = document.createElement('span');
-                    targetName.textContent = targetUnit.unitData.name;
-                    targetName.className = 'cursor-pointer underline text-red-400';
-                    targetName.dataset.targetId = dt.instanceId;
-                    targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
+                    targetName.textContent = target.unitData.name;
+                    targetName.className = 'cursor-pointer underline';
+                    targetName.addEventListener('click', () => flyToUnit(target.instanceId));
                     li.appendChild(targetName);
-                    li.appendChild(document.createTextNode(` - ${dt.classification}`));
+
+                    const isDetected = (sensor.detectedTargets || []).some(dt => dt.instanceId === target.instanceId);
+                    const badge = document.createElement('span');
+                    badge.className = `badge ${isDetected ? 'detected' : 'undetected'}`;
+                    badge.textContent = isDetected ? 'Detected' : 'Undetected';
+                    li.appendChild(badge);
+
                     list.appendChild(li);
                 });
 
