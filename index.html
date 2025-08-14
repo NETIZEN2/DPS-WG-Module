@@ -1127,10 +1127,18 @@
             }
 
             // --- SENSOR DETECTION ---
+            updateDetections();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateDetections() {
             activeMapUnits.forEach(unit => {
                 unit.detectedTargets = [];
                 unit.detectedBy = [];
             });
+
+            const classificationPriority = { unknown: 0, suspected: 1, confirmed: 2 };
 
             const sensors = Array.from(activeMapUnits.values()).filter(u =>
                 (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
@@ -1138,23 +1146,29 @@
 
             sensors.forEach(sensor => {
                 const sensorPos = sensor.marker.getLatLng();
-                const sensorRings = (sensor.effectiveRangeRings || [])
-                    .filter(ring => ring.type === 'sensor')
-                    .sort((a, b) => a.rangeNm - b.rangeNm);
+                const sensorRings = (sensor.effectiveRangeRings || []).filter(ring => ring.type === 'sensor');
 
-                activeMapUnits.forEach(target => {
-                    if (target.unitData.force === sensor.unitData.force) return;
-                    const distance = sensorPos.distanceTo(target.marker.getLatLng());
-                    const ring = sensorRings.find(r => distance <= r.rangeNm * NM_TO_METERS);
-                    if (ring) {
-                        const classification = getRingClassification(ring.name);
-                        sensor.detectedTargets.push({ unitId: target.unitId, classification });
-                        target.detectedBy.push({ unitId: sensor.unitId, classification });
+                activeMapUnits.forEach(targetUnit => {
+                    if (targetUnit.unitData.force === sensor.unitData.force) return;
+
+                    const distance = sensorPos.distanceTo(targetUnit.marker.getLatLng());
+                    const classifications = sensorRings
+                        .filter(r => distance <= r.rangeNm * NM_TO_METERS)
+                        .map(r => getRingClassification(r.name));
+
+                    if (classifications.length > 0) {
+                        let bestClassification = classifications[0];
+                        classifications.forEach(cls => {
+                            const currentPriority = classificationPriority[cls.toLowerCase()] || 0;
+                            const bestPriority = classificationPriority[bestClassification.toLowerCase()] || 0;
+                            if (currentPriority > bestPriority) bestClassification = cls;
+                        });
+
+                        sensor.detectedTargets.push({ unitId: targetUnit.unitId, classification: bestClassification });
+                        targetUnit.detectedBy.push({ unitId: sensor.unitId, classification: bestClassification });
                     }
                 });
             });
-
-            requestAnimationFrame(gameLoop);
         }
 
         function getPointAtDistance(start, end, distance) {
