@@ -1240,33 +1240,61 @@
             panel.innerHTML = '';
 
             activeMapUnits.forEach(sensor => {
-                if (!sensor.detectedTargets || sensor.detectedTargets.length === 0) return;
+                const hasSensor = sensor.unitData?.rangeRings?.some(r => r.type === 'sensor');
+                if (!hasSensor) return;
 
-                const sensorDiv = document.createElement('div');
-                const sensorName = document.createElement('span');
-                sensorName.textContent = sensor.unitData.name;
-                sensorName.className = 'cursor-pointer underline text-blue-400';
-                sensorName.dataset.sensorId = sensor.instanceId;
-                sensorName.addEventListener('click', () => flyToUnit(sensor.instanceId));
-                sensorDiv.appendChild(sensorName);
+                const detections = sensor.detectedTargets || [];
+                const hasDetections = detections.length > 0;
 
-                const list = document.createElement('ul');
-                sensor.detectedTargets.forEach(dt => {
-                    const targetUnit = activeMapUnits.get(dt.instanceId);
-                    if (!targetUnit) return;
-                    const li = document.createElement('li');
-                    const targetName = document.createElement('span');
-                    targetName.textContent = targetUnit.unitData.name;
-                    targetName.className = 'cursor-pointer underline text-red-400';
-                    targetName.dataset.targetId = dt.instanceId;
-                    targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
-                    li.appendChild(targetName);
-                    li.appendChild(document.createTextNode(` - ${dt.classification}`));
-                    list.appendChild(li);
+                const wrapper = document.createElement('details');
+                wrapper.className = 'border-b last:border-b-0';
+                wrapper.open = hasDetections;
+
+                const summary = document.createElement('summary');
+                summary.className = 'flex items-center gap-2 cursor-pointer p-1 hover:bg-gray-100 rounded';
+
+                const icon = document.createElement('img');
+                icon.src = sensor.unitData.iconUrl;
+                icon.alt = sensor.unitData.name;
+                icon.className = 'w-4 h-4';
+
+                const name = document.createElement('span');
+                name.textContent = sensor.unitData.name;
+                name.className = 'underline text-blue-400';
+                name.dataset.sensorId = sensor.instanceId;
+                name.addEventListener('click', e => {
+                    e.stopPropagation();
+                    flyToUnit(sensor.instanceId);
                 });
 
-                sensorDiv.appendChild(list);
-                panel.appendChild(sensorDiv);
+                const count = document.createElement('span');
+                count.textContent = `(${detections.length})`;
+                count.className = 'ml-auto text-xs text-gray-600';
+
+                summary.appendChild(icon);
+                summary.appendChild(name);
+                summary.appendChild(count);
+                wrapper.appendChild(summary);
+
+                if (hasDetections) {
+                    const list = document.createElement('ul');
+                    detections.forEach(dt => {
+                        const targetUnit = activeMapUnits.get(dt.instanceId);
+                        if (!targetUnit) return;
+                        const li = document.createElement('li');
+                        const targetName = document.createElement('span');
+                        targetName.textContent = targetUnit.unitData.name;
+                        targetName.className = 'cursor-pointer underline text-red-400';
+                        targetName.dataset.targetId = dt.instanceId;
+                        targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
+                        li.appendChild(targetName);
+                        li.appendChild(document.createTextNode(` - ${dt.classification}`));
+                        list.appendChild(li);
+                    });
+                    wrapper.appendChild(list);
+                }
+
+                panel.appendChild(wrapper);
             });
         }
 
