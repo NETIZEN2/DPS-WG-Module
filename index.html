@@ -1240,7 +1240,7 @@
             panel.innerHTML = '';
 
             activeMapUnits.forEach(sensor => {
-                if (!sensor.detectedTargets || sensor.detectedTargets.length === 0) return;
+                if (!sensor.detectedTargets) return;
 
                 const sensorDiv = document.createElement('div');
                 const sensorName = document.createElement('span');
@@ -1251,19 +1251,26 @@
                 sensorDiv.appendChild(sensorName);
 
                 const list = document.createElement('ul');
-                sensor.detectedTargets.forEach(dt => {
-                    const targetUnit = activeMapUnits.get(dt.instanceId);
-                    if (!targetUnit) return;
+                if (sensor.detectedTargets.length === 0) {
                     const li = document.createElement('li');
-                    const targetName = document.createElement('span');
-                    targetName.textContent = targetUnit.unitData.name;
-                    targetName.className = 'cursor-pointer underline text-red-400';
-                    targetName.dataset.targetId = dt.instanceId;
-                    targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
-                    li.appendChild(targetName);
-                    li.appendChild(document.createTextNode(` - ${dt.classification}`));
+                    li.textContent = 'No detections';
+                    li.className = 'text-gray-500 italic';
                     list.appendChild(li);
-                });
+                } else {
+                    sensor.detectedTargets.forEach(dt => {
+                        const targetUnit = activeMapUnits.get(dt.instanceId);
+                        if (!targetUnit) return;
+                        const li = document.createElement('li');
+                        const targetName = document.createElement('span');
+                        targetName.textContent = targetUnit.unitData.name;
+                        targetName.className = 'cursor-pointer underline text-red-400';
+                        targetName.dataset.targetId = dt.instanceId;
+                        targetName.addEventListener('click', () => flyToUnit(dt.instanceId));
+                        li.appendChild(targetName);
+                        li.appendChild(document.createTextNode(` - ${dt.classification}`));
+                        list.appendChild(li);
+                    });
+                }
 
                 sensorDiv.appendChild(list);
                 panel.appendChild(sensorDiv);
