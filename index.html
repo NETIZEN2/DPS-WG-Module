@@ -1444,6 +1444,12 @@
             const entityModal = document.getElementById('entity-modal');
             const measureBtn = document.getElementById('measure-btn');
             const mapContainer = document.getElementById('map-container');
+
+            function clearMeasure() {
+                if (measureLine) { measureLine.remove(); measureLine = null; }
+                if (measureLabel) { measureLabel.remove(); measureLabel = null; }
+                measureStart = null;
+            }
             
             addEntityBtn.addEventListener('click', () => {
                 document.getElementById('modal-step-1').classList.remove('hidden');
@@ -1459,19 +1465,33 @@
             measureBtn.addEventListener('click', () => {
                 if (measuring) {
                     measuring = false;
-                    measureStart = null;
+                    clearMeasure();
                     measureBtn.textContent = 'Measure';
                     measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
                     measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
                     mapContainer.classList.remove('measure-cursor');
+                } else if (measureLine || measureLabel) {
+                    clearMeasure();
                 } else {
                     setAction(null);
                     measuring = true;
-                    measureStart = null;
                     measureBtn.textContent = 'Cancel Measure';
                     measureBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
                     measureBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
                     mapContainer.classList.add('measure-cursor');
+                }
+            });
+
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    if (measuring) {
+                        measuring = false;
+                        measureBtn.textContent = 'Measure';
+                        measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                        measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                        mapContainer.classList.remove('measure-cursor');
+                    }
+                    clearMeasure();
                 }
             });
 
@@ -1604,14 +1624,12 @@
                         measureLine = L.polyline([measureStart, end], { color: 'yellow', weight: 2, dashArray: '4,4' }).addTo(map);
                         const distance = map.distance(measureStart, end);
                         const mid = L.latLng((measureStart.lat + end.lat) / 2, (measureStart.lng + end.lng) / 2);
+                        const distanceNm = distance / 1852;
+                        const distanceKm = distance / 1000;
                         measureLabel = L.marker(mid, {
                             interactive: false,
-                            icon: L.divIcon({ className: 'distance-label', html: `${(distance / 1000).toFixed(2)} km` })
+                            icon: L.divIcon({ className: 'distance-label', html: `${distanceKm.toFixed(2)} km / ${distanceNm.toFixed(2)} nm` })
                         }).addTo(map);
-                        setTimeout(() => {
-                            if (measureLine) { measureLine.remove(); measureLine = null; }
-                            if (measureLabel) { measureLabel.remove(); measureLabel = null; }
-                        }, 5000);
                         measuring = false;
                         measureStart = null;
                         measureBtn.textContent = 'Measure';
