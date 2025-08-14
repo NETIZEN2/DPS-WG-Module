@@ -564,6 +564,7 @@
                 instanceId: currentInstanceId,
                 ammo: ammo !== null ? ammo : unitData.ammo,
                 pendingTargets: [],
+                detectionLines: [],
                 mountedWeapons: unitData.hardpoints ? rehydratedMountedWeapons : [],
                 destination: destination ? L.latLng(destination.lat, destination.lng) : null,
                 movePathLine: null,
@@ -613,7 +614,19 @@
                 unitToRemove.rangeCircles.forEach(c => c.remove());
                 if (unitToRemove.movePathLine) unitToRemove.movePathLine.remove();
                 unitToRemove.pendingTargets?.forEach(t => t.line.remove());
+                unitToRemove.detectionLines?.forEach(dl => dl.line.remove());
                 activeMapUnits.delete(instanceId);
+
+                // Remove references from other units' detection lines
+                activeMapUnits.forEach(unit => {
+                    unit.detectionLines = (unit.detectionLines || []).filter(dl => {
+                        if (dl.targetId === instanceId) {
+                            dl.line.remove();
+                            return false;
+                        }
+                        return true;
+                    });
+                });
             }
         }
 
@@ -624,6 +637,17 @@
             if (unit.movePathLine) {
                 unit.movePathLine.setLatLngs([newLatLng, unit.destination]);
             }
+
+            // Update detection lines for all sensors
+            activeMapUnits.forEach(sensor => {
+                if (!sensor.detectionLines) return;
+                sensor.detectionLines.forEach(dl => {
+                    const targetUnit = activeMapUnits.get(dl.targetId);
+                    if (sensor.marker && targetUnit?.marker) {
+                        dl.line.setLatLngs([sensor.marker.getLatLng(), targetUnit.marker.getLatLng()]);
+                    }
+                });
+            });
         }
 
         function bindUnitEvents(unitObject) {
@@ -1174,6 +1198,7 @@
 
                     const sensorEntryIndex = sensor.detectedTargets.findIndex(dt => dt.instanceId === target.instanceId);
                     const targetEntryIndex = target.detectedBy.findIndex(db => db.instanceId === sensor.instanceId);
+                    const lineIndex = (sensor.detectionLines || []).findIndex(dl => dl.targetId === target.instanceId);
 
                     if (ring) {
                         const classification = getRingClassification(ring.name);
@@ -1186,12 +1211,31 @@
                             sensor.detectedTargets.push({ instanceId: target.instanceId, classification });
                             target.detectedBy.push({ instanceId: sensor.instanceId, classification });
                         }
+
+                        if (lineIndex !== -1) {
+                            const dl = sensor.detectionLines[lineIndex];
+                            dl.line.setLatLngs([sensorPos, target.marker.getLatLng()]);
+                            dl.line.setStyle({ color: '#22c55e', opacity: 1, dashArray: '4,4' });
+                            dl.status = 'active';
+                        } else {
+                            const line = L.polyline([sensorPos, target.marker.getLatLng()], {
+                                color: '#22c55e', weight: 1, dashArray: '4,4'
+                            }).addTo(map);
+                            sensor.detectionLines.push({ targetId: target.instanceId, line, status: 'active' });
+                        }
                     } else {
                         if (sensorEntryIndex !== -1) {
                             sensor.detectedTargets.splice(sensorEntryIndex, 1);
                         }
                         if (targetEntryIndex !== -1) {
                             target.detectedBy.splice(targetEntryIndex, 1);
+                        }
+                        if (lineIndex !== -1) {
+                            const dl = sensor.detectionLines[lineIndex];
+                            dl.line.setLatLngs([sensorPos, target.marker.getLatLng()]);
+                            dl.line.setStyle({ color: '#ef4444', opacity: 0.5, dashArray: '4,4' });
+                            dl.status = 'lost';
+                            dl.lostAt = Date.now();
                         }
                     }
                 });
@@ -1238,6 +1282,17 @@
             const panel = document.getElementById('detection-panel');
             if (!panel) return;
             panel.innerHTML = '';
+
+            const now = Date.now();
+            activeMapUnits.forEach(sensor => {
+                sensor.detectionLines = (sensor.detectionLines || []).filter(dl => {
+                    if (dl.status === 'lost' && now - dl.lostAt > 3000) {
+                        dl.line.remove();
+                        return false;
+                    }
+                    return true;
+                });
+            });
 
             activeMapUnits.forEach(sensor => {
                 if (!sensor.detectedTargets || sensor.detectedTargets.length === 0) return;
