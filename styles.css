@@ -1,0 +1,153 @@
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scrolling */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            background-color: #a2d3f5; /* A light blue to represent the sea/sky */
+        }
+        /* Styling for the unit name labels */
+        .unit-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            white-space: nowrap;
+            color: #1f2937; /* gray-800 */
+            text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white;
+        }
+        /* Style for draggable items in the menu */
+        .draggable-unit { cursor: grab; }
+        .draggable-unit:active { cursor: grabbing; }
+        /* Style for mountable ordnance in the menu */
+        .mountable-ordnance { background-color: #eef2ff; }
+        /* Cursors for different modes */
+        .targeting-cursor { cursor: crosshair !important; }
+        .move-cursor { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>') 16 16, auto !important; }
+        .targeting-cursor .leaflet-marker-icon.invalid-target-hover,
+        .move-cursor .leaflet-marker-icon { cursor: not-allowed !important; }
+        /* Line styles */
+        .trajectory-line, .move-path-line { stroke-dasharray: 5, 10; }
+        .jamming-circle-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { stroke-opacity: 1; stroke-width: 2; }
+            50% { stroke-opacity: 0.5; stroke-width: 4; }
+            100% { stroke-opacity: 1; stroke-width: 2; }
+        }
+        /* Jammed unit effect */
+        .jammed-effect {
+            animation: flicker 0.3s infinite;
+        }
+        @keyframes flicker {
+            0% { filter: grayscale(1) opacity(0.7); }
+            50% { filter: grayscale(1) opacity(0.4); }
+            100% { filter: grayscale(1) opacity(0.7); }
+        }
+        /* Targeting button effect */
+        .targeting-button-pulse {
+            animation: pulse-bg 1.5s infinite;
+        }
+        @keyframes pulse-bg {
+            0% { background-color: #f59e0b; } /* amber-500 */
+            50% { background-color: #fcd34d; } /* amber-300 */
+            100% { background-color: #f59e0b; } /* amber-500 */
+        }
+        /* Aircraft weapon badge */
+        .weapon-badge {
+            position: absolute; top: -5px; right: -8px;
+            background-color: #ef4444; color: white;
+            border-radius: 9999px; width: 18px; height: 18px;
+            font-size: 11px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            border: 2px solid white;
+        }
+        /* Highlight for valid drop target */
+        .drop-target-highlight { filter: drop-shadow(0 0 8px #22c55e) !important; }
+        
+        /* NEW: Targeting Panel styles */
+        #targeting-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        /* NEW: Legend Styles */
+        .legend {
+            padding: 6px 8px;
+            font: 12px/1.5 'Inter', sans-serif;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .legend h4 {
+            margin: 0 0 5px;
+            color: #333;
+            font-weight: 700;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        
+        /* REWORK: Contemporary popup style for info */
+        .unit-info-popup .leaflet-popup-content-wrapper {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 8px !important;
+            border: 1px solid #ccc !important;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.2) !important;
+        }
+        .unit-info-popup .leaflet-popup-content {
+            margin: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .unit-info-popup .leaflet-popup-tip-container {
+            display: none;
+        }
+
+        /* NEW: Style for dynamic ring labels */
+        .ring-label {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        /* NEW: Icon selector styles */
+        .icon-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .icon-selector-item {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .icon-selector-item:hover {
+            background-color: #f3f4f6;
+        }
+        .icon-selector-item.selected {
+            border-color: #3b82f6;
+        }
+        .bg-grey-100 { background-color: #f3f4f6; } /* Tailwind's gray-100 */
