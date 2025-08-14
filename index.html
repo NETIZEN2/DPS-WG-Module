@@ -1175,6 +1175,30 @@
                     }
                 });
             });
+
+            const priority = { unknown: 0, suspected: 1, confirmed: 2 };
+            activeMapUnits.forEach(target => {
+                if (!target.detectedBy || target.detectedBy.length === 0) return;
+
+                const aggregated = {};
+                target.detectedBy.forEach(entry => {
+                    const existing = aggregated[entry.unitId];
+                    if (!existing || (priority[entry.classification] || 0) > (priority[existing.classification] || 0)) {
+                        aggregated[entry.unitId] = { unitId: entry.unitId, classification: entry.classification };
+                    }
+                });
+                target.detectedBy = Object.values(aggregated);
+
+                Object.values(aggregated).forEach(({ unitId: sensorUnitId, classification }) => {
+                    sensors
+                        .filter(s => s.unitId === sensorUnitId)
+                        .forEach(sensor => {
+                            sensor.detectedTargets = sensor.detectedTargets || [];
+                            sensor.detectedTargets = sensor.detectedTargets.filter(dt => dt.unitId !== target.unitId);
+                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
+                        });
+                });
+            });
         }
 
         function getPointAtDistance(start, end, distance) {
