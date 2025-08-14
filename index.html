@@ -1127,16 +1127,18 @@
             }
 
             // --- SENSOR DETECTION ---
-            activeMapUnits.forEach(unit => {
-                unit.detectedTargets = [];
-                unit.detectedBy = [];
-            });
+            updateDetections();
 
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateDetections() {
             const sensors = Array.from(activeMapUnits.values()).filter(u =>
                 (u.effectiveRangeRings || []).some(r => r.type === 'sensor')
             );
 
             sensors.forEach(sensor => {
+                sensor.detectedTargets = sensor.detectedTargets || [];
                 const sensorPos = sensor.marker.getLatLng();
                 const sensorRings = (sensor.effectiveRangeRings || [])
                     .filter(ring => ring.type === 'sensor')
@@ -1144,17 +1146,35 @@
 
                 activeMapUnits.forEach(target => {
                     if (target.unitData.force === sensor.unitData.force) return;
+                    target.detectedBy = target.detectedBy || [];
+
                     const distance = sensorPos.distanceTo(target.marker.getLatLng());
                     const ring = sensorRings.find(r => distance <= r.rangeNm * NM_TO_METERS);
+
+                    const sensorEntryIndex = sensor.detectedTargets.findIndex(dt => dt.unitId === target.unitId);
+                    const targetEntryIndex = target.detectedBy.findIndex(db => db.unitId === sensor.unitId);
+
                     if (ring) {
                         const classification = getRingClassification(ring.name);
-                        sensor.detectedTargets.push({ unitId: target.unitId, classification });
-                        target.detectedBy.push({ unitId: sensor.unitId, classification });
+                        if (sensorEntryIndex !== -1 && targetEntryIndex !== -1) {
+                            if (sensor.detectedTargets[sensorEntryIndex].classification !== classification) {
+                                sensor.detectedTargets[sensorEntryIndex].classification = classification;
+                                target.detectedBy[targetEntryIndex].classification = classification;
+                            }
+                        } else {
+                            sensor.detectedTargets.push({ unitId: target.unitId, classification });
+                            target.detectedBy.push({ unitId: sensor.unitId, classification });
+                        }
+                    } else {
+                        if (sensorEntryIndex !== -1) {
+                            sensor.detectedTargets.splice(sensorEntryIndex, 1);
+                        }
+                        if (targetEntryIndex !== -1) {
+                            target.detectedBy.splice(targetEntryIndex, 1);
+                        }
                     }
                 });
             });
-
-            requestAnimationFrame(gameLoop);
         }
 
         function getPointAtDistance(start, end, distance) {
