@@ -298,6 +298,7 @@
         let measureLine = null;
         let measureLabel = null;
         const collapsedSensors = new Set();
+        let lastDetectionSignature = '';
 
         function clearMeasure() {
             if (measureLine) {
@@ -1308,7 +1309,18 @@
                 }
             });
 
-            refreshDetectionPanel();
+            const newSignature = JSON.stringify(
+                sensors.map(sensor => ({
+                    id: sensor.instanceId,
+                    targets: (sensor.detectedTargets || [])
+                        .map(dt => dt.instanceId)
+                        .sort(),
+                }))
+            );
+            if (newSignature !== lastDetectionSignature) {
+                lastDetectionSignature = newSignature;
+                refreshDetectionPanel();
+            }
         }
 
         function flyToUnit(instanceId, zoom = 7) {
@@ -1343,6 +1355,7 @@
                 if (isCollapsed) list.style.display = 'none';
 
                 const toggleBtn = document.createElement('button');
+                toggleBtn.type = 'button';
                 toggleBtn.textContent = isCollapsed ? '▸' : '▾';
                 toggleBtn.className = 'mr-2 text-gray-500 hover:text-gray-700 focus:outline-none';
                 toggleBtn.addEventListener('click', (e) => {
@@ -1350,12 +1363,11 @@
                     if (collapsedSensors.has(sensor.instanceId)) {
                         collapsedSensors.delete(sensor.instanceId);
                         list.style.display = '';
-                        toggleBtn.textContent = '▾';
                     } else {
                         collapsedSensors.add(sensor.instanceId);
                         list.style.display = 'none';
-                        toggleBtn.textContent = '▸';
                     }
+                    toggleBtn.textContent = collapsedSensors.has(sensor.instanceId) ? '▸' : '▾';
                 });
 
                 const sensorName = document.createElement('span');
