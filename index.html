@@ -207,6 +207,11 @@
                     <button id="reset-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400">Reset Scene</button>
                     <button id="clear-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Clear All</button>
                 </div>
+                <div class="flex space-x-2">
+                    <button id="export-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">Export</button>
+                    <input type="file" id="import-input" accept="application/json" class="hidden">
+                    <button id="import-btn" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">Import</button>
+                </div>
             </div>
 
             <!-- NEW: Targeting Control Panel -->
@@ -1415,6 +1420,9 @@
             const saveBtn = document.getElementById('save-btn');
             const resetBtn = document.getElementById('reset-btn');
             const clearBtn = document.getElementById('clear-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const importBtn = document.getElementById('import-btn');
+            const importInput = document.getElementById('import-input');
             const toggleRingsBtn = document.getElementById('toggle-rings-btn');
             const mapDropEl = document.getElementById('map');
             const addEntityBtn = document.getElementById('add-entity-btn');
@@ -1448,6 +1456,54 @@
                 toggleRingsBtn.textContent = rangeRingsVisible ? 'Hide Range Rings' : 'Show Range Rings';
             });
 
+            exportBtn.addEventListener('click', () => {
+                const scenario = Array.from(activeMapUnits.values()).map(unit => ({
+                    latlng: unit.marker.getLatLng(),
+                    unitId: unit.unitId,
+                    instanceId: unit.instanceId,
+                    ammo: unit.ammo,
+                    mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
+                    destination: unit.destination
+                }));
+                const blob = new Blob([JSON.stringify(scenario, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'scenario.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            importBtn.addEventListener('click', () => importInput.click());
+            importInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        savedScenario = JSON.parse(evt.target.result);
+                        localStorage.setItem('savedScenario', JSON.stringify(savedScenario));
+                        clearMap();
+                        const maxId = savedScenario.reduce((max, unit) => {
+                            let highestId = unit.instanceId;
+                            if (unit.mountedWeapons) {
+                                const maxWeaponId = unit.mountedWeapons.reduce((wm, w) => Math.max(wm, w.instanceId), 0);
+                                highestId = Math.max(highestId, maxWeaponId);
+                            }
+                            return Math.max(max, highestId);
+                        }, -1);
+                        nextUnitInstanceId = maxId + 1;
+                        savedScenario.forEach(unit => {
+                            addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                        });
+                    } catch (err) {
+                        console.error('Failed to import scenario', err);
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            });
+
             saveBtn.addEventListener('click', () => {
                 savedScenario = Array.from(activeMapUnits.values()).map(unit => ({
                     latlng: unit.marker.getLatLng(),
@@ -1457,6 +1513,7 @@
                     mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
                     destination: unit.destination
                 }));
+                localStorage.setItem('savedScenario', JSON.stringify(savedScenario));
                 saveBtn.textContent = "Saved!";
                 saveBtn.classList.replace('bg-indigo-600', 'bg-green-500');
                 saveBtn.classList.remove('hover:bg-indigo-700');
@@ -1576,7 +1633,29 @@
 
             // --- STARTUP ---
             populateMenu();
-            setupInitialScene();
+            const storedScenario = localStorage.getItem('savedScenario');
+            if (storedScenario) {
+                try {
+                    savedScenario = JSON.parse(storedScenario);
+                    const maxId = savedScenario.reduce((max, unit) => {
+                        let highestId = unit.instanceId;
+                        if (unit.mountedWeapons) {
+                            const maxWeaponId = unit.mountedWeapons.reduce((wm, w) => Math.max(wm, w.instanceId), 0);
+                            highestId = Math.max(highestId, maxWeaponId);
+                        }
+                        return Math.max(max, highestId);
+                    }, -1);
+                    nextUnitInstanceId = maxId + 1;
+                    savedScenario.forEach(unit => {
+                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                    });
+                } catch (err) {
+                    console.error('Failed to load scenario from storage', err);
+                    setupInitialScene();
+                }
+            } else {
+                setupInitialScene();
+            }
             requestAnimationFrame(gameLoop);
         }
 
