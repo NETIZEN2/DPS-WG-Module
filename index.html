@@ -232,6 +232,25 @@
 
             <!-- Detection Results Panel -->
             <div id="detection-panel" class="absolute top-4 right-4 z-[1000] w-64 bg-gray-800/90 text-white p-2 rounded shadow-lg max-h-60 overflow-y-auto space-y-1"></div>
+
+            <!-- Label Editor Sidebar -->
+            <div id="labelEditor" class="absolute top-0 left-0 h-full w-64 bg-white shadow-lg z-[1200] p-4 overflow-y-auto hidden">
+                <form id="label-form" class="space-y-2">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Label</label>
+                        <input type="text" name="label" class="w-full border rounded p-1" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Metadata</label>
+                        <textarea name="metadata" class="w-full border rounded p-1"></textarea>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white px-2 py-1 rounded">Save</button>
+                        <button type="button" id="delete-label" class="flex-1 bg-red-600 text-white px-2 py-1 rounded">Delete</button>
+                    </div>
+                    <button type="button" id="close-label-editor" class="w-full bg-gray-500 text-white px-2 py-1 rounded">Close</button>
+                </form>
+            </div>
         </div>
 
         <!-- Right Hand Menu -->
@@ -292,12 +311,13 @@
         let lastFrameTime = performance.now();
         let activeInfoPopup = null;
         let rangeRingsVisible = true;
-        const labelingMode = false;
+        let labelingMode = false;
         let measuring = false;
         let measureStart = null;
         let measureLine = null;
         let measureLabel = null;
         const collapsedSensors = new Set();
+        let labelEditorFeature = null;
 
         function clearMeasure() {
             if (measureLine) {
@@ -591,12 +611,12 @@
         }
 
         // --- CORE UNIT MANAGEMENT ---
-        function addCapability(latlng, unitId, instanceId = null, ammo = null, mountedWeapons = null, destination = null) {
+        function addCapability(latlng, unitId, instanceId = null, ammo = null, mountedWeapons = null, destination = null, label = null, metadata = '') {
             const unitData = unitLibrary[unitId];
             if (!unitData) return;
 
             const currentInstanceId = instanceId !== null ? instanceId : nextUnitInstanceId++;
-            
+
             const rehydratedMountedWeapons = mountedWeapons ? mountedWeapons.map(w => ({
                 ...w,
                 pendingTargets: w.pendingTargets || [],
@@ -607,10 +627,11 @@
             const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
             marker.instanceId = currentInstanceId;
 
-            const nameMarker = L.marker(latlng, {
-                icon: L.divIcon({ className: 'unit-label', html: `<div>${unitData.shortName}</div>`, iconAnchor: [unitData.shortName.length * 3, -5] }),
+            const labelText = label !== null ? label : unitData.shortName;
+            const nameMarker = labelText ? L.marker(latlng, {
+                icon: L.divIcon({ className: 'unit-label', html: `<div>${labelText}</div>`, iconAnchor: [labelText.length * 3, -5] }),
                 interactive: false
-            }).addTo(map);
+            }).addTo(map) : null;
 
             const unitObject = {
                 marker, nameMarker, rangeCircles: [], unitId, unitData,
@@ -622,6 +643,8 @@
                 movePathLine: null,
                 isJammed: false,
                 ringLabels: [],
+                label: labelText,
+                metadata: metadata || '',
                 effectiveRangeRings: JSON.parse(JSON.stringify(unitData.rangeRings || [])) // Deep copy
             };
             
@@ -662,7 +685,7 @@
             if (unitToRemove) {
                 map.closePopup();
                 unitToRemove.marker.remove();
-                unitToRemove.nameMarker.remove();
+                unitToRemove.nameMarker && unitToRemove.nameMarker.remove();
                 unitToRemove.rangeCircles.forEach(c => c.remove());
                 if (unitToRemove.movePathLine) unitToRemove.movePathLine.remove();
                 unitToRemove.pendingTargets?.forEach(t => t.line.remove());
@@ -672,7 +695,7 @@
 
         function updateUnitPosition(unit, newLatLng) {
             unit.marker.setLatLng(newLatLng);
-            unit.nameMarker.setLatLng(newLatLng);
+            if (unit.nameMarker) unit.nameMarker.setLatLng(newLatLng);
             unit.rangeCircles.forEach(circle => circle.setLatLng(newLatLng));
             if (unit.movePathLine) {
                 unit.movePathLine.setLatLngs([newLatLng, unit.destination]);
@@ -705,6 +728,10 @@
             });
 
             marker.on('click', (e) => {
+                if (labelingMode) {
+                    openLabelEditor(unitObject);
+                    return;
+                }
                 if (measuring) {
                     map.fire('click', { latlng: marker.getLatLng() });
                     return;
@@ -775,6 +802,23 @@
                 }
             }
         }
+
+        function openLabelEditor(unit) {
+            labelEditorFeature = unit;
+            const editor = document.getElementById('labelEditor');
+            const form = document.getElementById('label-form');
+            if (!editor || !form) return;
+            form.label.value = unit.label || '';
+            form.metadata.value = unit.metadata || '';
+            editor.classList.remove('hidden');
+        }
+
+        function closeLabelEditor() {
+            const editor = document.getElementById('labelEditor');
+            if (editor) editor.classList.add('hidden');
+            labelEditorFeature = null;
+        }
+
         
         function getUnitInfoPopupHTML(unitObject) {
             const { unitData, instanceId } = unitObject;
@@ -1498,6 +1542,10 @@
             const entityModal = document.getElementById('entity-modal');
             const measureBtn = document.getElementById('measure-btn');
             const mapContainer = document.getElementById('map-container');
+            const labelEditorEl = document.getElementById('labelEditor');
+            const labelForm = document.getElementById('label-form');
+            const deleteLabelBtn = document.getElementById('delete-label');
+            const closeLabelEditorBtn = document.getElementById('close-label-editor');
             
             addEntityBtn.addEventListener('click', () => {
                 document.getElementById('modal-step-1').classList.remove('hidden');
@@ -1548,6 +1596,45 @@
                 }
             });
 
+            labelForm.addEventListener('submit', e => {
+                e.preventDefault();
+                if (!labelEditorFeature) return;
+                const newLabel = labelForm.label.value.trim();
+                const newMeta = labelForm.metadata.value.trim();
+                labelEditorFeature.label = newLabel;
+                labelEditorFeature.metadata = newMeta;
+                if (newLabel) {
+                    if (labelEditorFeature.nameMarker) {
+                        labelEditorFeature.nameMarker.setIcon(L.divIcon({ className: 'unit-label', html: `<div>${newLabel}</div>`, iconAnchor: [newLabel.length * 3, -5] }));
+                        labelEditorFeature.nameMarker.setLatLng(labelEditorFeature.marker.getLatLng());
+                    } else {
+                        labelEditorFeature.nameMarker = L.marker(labelEditorFeature.marker.getLatLng(), {
+                            icon: L.divIcon({ className: 'unit-label', html: `<div>${newLabel}</div>`, iconAnchor: [newLabel.length * 3, -5] }),
+                            interactive: false
+                        }).addTo(map);
+                    }
+                } else if (labelEditorFeature.nameMarker) {
+                    labelEditorFeature.nameMarker.remove();
+                    labelEditorFeature.nameMarker = null;
+                }
+                closeLabelEditor();
+            });
+
+            deleteLabelBtn.addEventListener('click', () => {
+                if (!labelEditorFeature) return;
+                if (labelEditorFeature.nameMarker) {
+                    labelEditorFeature.nameMarker.remove();
+                    labelEditorFeature.nameMarker = null;
+                }
+                labelEditorFeature.label = '';
+                labelEditorFeature.metadata = '';
+                closeLabelEditor();
+            });
+
+            closeLabelEditorBtn.addEventListener('click', () => {
+                closeLabelEditor();
+            });
+
             toggleRingsBtn.addEventListener('click', () => {
                 rangeRingsVisible = !rangeRingsVisible;
                 activeMapUnits.forEach(unit => {
@@ -1571,7 +1658,9 @@
                     instanceId: unit.instanceId,
                     ammo: unit.ammo,
                     mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
-                    destination: unit.destination
+                    destination: unit.destination,
+                    label: unit.label,
+                    metadata: unit.metadata
                 }));
                 const blob = new Blob([JSON.stringify(scenario, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -1602,7 +1691,7 @@
                         }, -1);
                         nextUnitInstanceId = maxId + 1;
                         savedScenario.forEach(unit => {
-                            addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                            addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination, unit.label, unit.metadata);
                         });
                     } catch (err) {
                         console.error('Failed to import scenario', err);
@@ -1619,7 +1708,9 @@
                     instanceId: unit.instanceId,
                     ammo: unit.ammo,
                     mountedWeapons: unit.mountedWeapons ? unit.mountedWeapons.map(w => ({ weaponId: w.weaponId, ammo: w.ammo, instanceId: w.instanceId })) : null,
-                    destination: unit.destination
+                    destination: unit.destination,
+                    label: unit.label,
+                    metadata: unit.metadata
                 }));
                 localStorage.setItem('savedScenario', JSON.stringify(savedScenario));
                 saveBtn.textContent = "Saved!";
@@ -1646,7 +1737,7 @@
                     nextUnitInstanceId = maxId + 1;
 
                     savedScenario.forEach(unit => {
-                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination, unit.label, unit.metadata);
                     });
                 } else {
                     setupInitialScene();
@@ -1787,7 +1878,7 @@
                     }, -1);
                     nextUnitInstanceId = maxId + 1;
                     savedScenario.forEach(unit => {
-                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination);
+                        addCapability(unit.latlng, unit.unitId, unit.instanceId, unit.ammo, unit.mountedWeapons, unit.destination, unit.label, unit.metadata);
                     });
                 } catch (err) {
                     console.error('Failed to load scenario from storage', err);
