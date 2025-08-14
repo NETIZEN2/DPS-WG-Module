@@ -315,7 +315,7 @@
                 shortName: 'SA-12',
                 force: 'red',
                 category: 'weapons',
-                classification: 'land',
+                classification: 'cruise-missile',
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/7165/7165074.png',
                 ammo: 8,
                 movable: true,
@@ -324,7 +324,7 @@
                 reloadTimeHours: 6,
                 weaponSpeedMach: 1,
                 rangeRings: [
-                    { type: 'sensor', rangeNm: 300, name: 'Sensor (Non-Manoeuvring)', targetClass: 'large-ac' },
+                    { type: 'sensor', rangeNm: 300, name: 'Sensor (Non-Manoeuvring)', targetClass: 'non-manoeuvring' },
                     { type: 'sensor', rangeNm: 140, name: 'Sensor (Fighter)',       targetClass: 'fighter' },
                     { type: 'sensor', rangeNm: 60,  name: 'Sensor (Cruise Missile)', targetClass: 'cruise-missile' },
                     { type: 'sensor', rangeNm: 20,  name: 'Sensor (Hypersonic)',     targetClass: 'hypersonic' },
@@ -333,7 +333,7 @@
                 jammingEffects: {
                     'ea-30g': { // Jammed by EA-30G Flowler
                         degradedRings: [
-                            { type: 'sensor', rangeNm: 150, name: 'Sensor (Non-Manoeuvring)', targetClass: 'large-ac' },
+                            { type: 'sensor', rangeNm: 150, name: 'Sensor (Non-Manoeuvring)', targetClass: 'non-manoeuvring' },
                             { type: 'sensor', rangeNm: 50,  name: 'Sensor (Fighter)',       targetClass: 'fighter' },
                             { type: 'sensor', rangeNm: 30,  name: 'Sensor (Cruise Missile)', targetClass: 'cruise-missile' },
                             { type: 'sensor', rangeNm: 20,  name: 'Sensor (Hypersonic)',     targetClass: 'hypersonic' },
