@@ -1624,10 +1624,6 @@
                             interactive: false,
                             icon: L.divIcon({ className: 'distance-label', html: `${(distance / 1000).toFixed(2)} km` })
                         }).addTo(map);
-                        setTimeout(() => {
-                            if (measureLine) { measureLine.remove(); measureLine = null; }
-                            if (measureLabel) { measureLabel.remove(); measureLabel = null; }
-                        }, 5000);
                         measuring = false;
                         measureStart = null;
                         measureBtn.textContent = 'Measure';
