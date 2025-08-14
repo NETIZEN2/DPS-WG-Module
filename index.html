@@ -270,11 +270,26 @@
             weapon: { color: '#ef4444', weight: 2, dashArray: null, fillOpacity: 0.1 } // Red colour
         };
 
+        const classificationPriority = {
+            unknown: 0,
+            suspect: 1,
+            confirmed: 2
+        };
+
         function getRingClassification(name) {
             const match = name.match(/\(([^)]+)\)/);
-            const classification = match ? match[1] : name;
-            const mapping = { 'Lrg AC': 'Large AC' };
-            return mapping[classification] || classification;
+            const raw = (match ? match[1] : name).trim().toLowerCase();
+            const mapping = {
+                'lrg ac': 'large ac',
+                'unk': 'unknown',
+                'unknown': 'unknown',
+                'sus': 'suspect',
+                'suspect': 'suspect',
+                'conf': 'confirmed',
+                'confirmed': 'confirmed'
+            };
+            const classification = mapping[raw] || raw;
+            return classificationPriority[classification] !== undefined ? classification : 'unknown';
         }
 
         // --- UNIT DATA LIBRARY ---
@@ -405,7 +420,7 @@
                 hardpoints: 6,
                 speedKph: 988, // Mach 0.8
                 rangeRings: [
-                    { type: 'sensor', rangeNm: 100, name: 'Sensor (Lrg AC)' },
+                    { type: 'sensor', rangeNm: 100, name: 'Sensor (Large AC)' },
                     { type: 'sensor', rangeNm: 50, name: 'Sensor (Fighter)' },
                     { type: 'movement', rangeNm: 1100, name: 'Max Range (External)'},
                     { type: 'movement', rangeNm: 800, name: 'Max Range (Internal)'},
