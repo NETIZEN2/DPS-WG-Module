@@ -298,6 +298,19 @@
         let measureLine = null;
         let measureLabel = null;
 
+        function clearMeasure() {
+            if (measureLine) {
+                measureLine.remove();
+                measureLine = null;
+            }
+            if (measureLabel) {
+                measureLabel.remove();
+                measureLabel = null;
+            }
+            measuring = false;
+            measureStart = null;
+        }
+
         // --- VISUAL CONFIGURATION ---
         const ringStyles = {
             sensor: { color: '#0ea5e9', weight: 1.5, dashArray: '2, 8', fillOpacity: 0.05 }, // Cyan colour
@@ -1462,8 +1475,7 @@
             launchBtn.addEventListener('click', launchAllTargeted);
             measureBtn.addEventListener('click', () => {
                 if (measuring) {
-                    measuring = false;
-                    measureStart = null;
+                    clearMeasure();
                     measureBtn.textContent = 'Measure';
                     measureBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
                     measureBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
@@ -1474,6 +1486,8 @@
                     map.boxZoom.enable();
                     map.keyboard.enable();
                     activeMapUnits.forEach(unit => unit.marker.dragging.enable());
+                } else if (measureLine || measureLabel) {
+                    clearMeasure();
                 } else {
                     setAction(null);
                     measuring = true;
@@ -1488,6 +1502,12 @@
                     map.boxZoom.disable();
                     map.keyboard.disable();
                     activeMapUnits.forEach(unit => unit.marker.dragging.disable());
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    clearMeasure();
                 }
             });
 
